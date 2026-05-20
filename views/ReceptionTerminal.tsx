@@ -468,8 +468,10 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
               <X size={24} />
             </button>
 
-            <div className="bg-white p-4 rounded-3xl shadow-2xl relative overflow-hidden" style={{ minWidth: '794px' }}>
-              <Invoice os={selectedOrder} />
+            <div className="invoice-preview-wrapper">
+              <div className="invoice-container-scaled">
+                <Invoice os={selectedOrder} />
+              </div>
             </div>
 
             <div className="flex gap-4 w-full justify-center max-w-sm">

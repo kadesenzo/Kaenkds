@@ -45,6 +45,8 @@ export enum SyncStatus {
 
 export interface UserSession {
   username: string;
+  activeUser: string;
+  realUsername: string;
   role: 'Dono' | 'Funcionário' | 'Recepção';
   lastSync: string;
 }

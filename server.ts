@@ -30,7 +30,22 @@ function writeDb(data: any) {
   }
 }
 
-// Global list of active SSE connections per username
+// Presence Interfaces
+interface ActiveSession {
+  id: string;
+  activeUser: string;
+  realUsername: string;
+  role: string;
+  device: string;
+  ip: string;
+  timestamp: string;
+  res: express.Response;
+}
+
+// Registry of rich active sessions
+const activeSessions: Record<string, ActiveSession[]> = {};
+
+// Global list of active SSE connections per username (backward compatible)
 const clients: Record<string, express.Response[]> = {};
 
 // Broadcast helper for real-time push to all sessions for a username
@@ -47,6 +62,28 @@ function broadcastToUser(username: string, payload: any) {
     }
   }
   clients[username] = activeClients;
+}
+
+// Broadcast presence list helper
+function broadcastPresence(username: string) {
+  const list = activeSessions[username] || [];
+  const payload = list.map(s => ({
+    id: s.id,
+    activeUser: s.activeUser,
+    realUsername: s.realUsername,
+    role: s.role,
+    device: s.device,
+    ip: s.ip,
+    timestamp: s.timestamp
+  }));
+
+  for (const session of list) {
+    try {
+      session.res.write(`data: ${JSON.stringify({ type: "presence", sessions: payload })}\n\n`);
+    } catch (e) {
+      // ignore
+    }
+  }
 }
 
 // REST endpoints for synchronization
@@ -75,24 +112,73 @@ app.post("/api/sync/:username/:key", (req, res) => {
   db[userKey] = payload;
   writeDb(db);
   
+  // Broadcast data update to all sessions
   broadcastToUser(username, { key, value: payload });
   res.json({ success: true });
 });
 
+// Presence endpoint
+app.get("/api/presence/:username", (req, res) => {
+  const { username } = req.params;
+  const list = activeSessions[username] || [];
+  const publicSessions = list.map(s => ({
+    id: s.id,
+    activeUser: s.activeUser,
+    realUsername: s.realUsername,
+    role: s.role,
+    device: s.device,
+    ip: s.ip,
+    timestamp: s.timestamp
+  }));
+  res.json(publicSessions);
+});
+
+// Event Source Connection Stream
 app.get("/api/sync-stream/:username", (req, res) => {
   const { username } = req.params;
+  const { activeUser = "", role = "", device = "", realUsername = "" } = req.query;
   
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  
+  const clientIp = (req.headers["x-forwarded-for"] as string || req.ip || "127.0.0.1").split(",")[0].trim();
+  const sessionId = `${username}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  
+  if (!activeSessions[username]) {
+    activeSessions[username] = [];
+  }
+  
+  const newSession: ActiveSession = {
+    id: sessionId,
+    activeUser: String(activeUser),
+    realUsername: String(realUsername || activeUser),
+    role: String(role),
+    device: String(device),
+    ip: clientIp,
+    timestamp: new Date().toISOString(),
+    res
+  };
+  
+  activeSessions[username].push(newSession);
   
   if (!clients[username]) {
     clients[username] = [];
   }
   clients[username].push(res);
   
+  // Send initial connection reply
+  res.write(`data: ${JSON.stringify({ type: "connected", id: sessionId })}\n\n`);
+  
+  // Broadcast updated presence list immediately
+  setTimeout(() => {
+    broadcastPresence(username);
+  }, 100);
+  
   req.on("close", () => {
+    activeSessions[username] = (activeSessions[username] || []).filter(s => s.id !== sessionId);
     clients[username] = (clients[username] || []).filter(c => c !== res);
+    broadcastPresence(username);
   });
 });
 

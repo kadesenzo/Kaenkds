@@ -79,15 +79,21 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
 
   return (
     <div className="animate-in fade-in duration-700 space-y-12 p-6 md:p-12 pb-40 max-w-[1200px] mx-auto flex flex-col items-center w-full">
-      <div className="flex flex-col items-center text-center gap-12 w-full mt-8">
-        <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-[0.8] text-center">
+       <div className="flex flex-col items-center text-center gap-12 w-full mt-8">
+        <h1 className="text-3xl sm:text-5xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-[0.8] text-center">
           HISTÓRICO <span className="text-[#FF2D55]">GERAL</span>
         </h1>
       </div>
 
-      <div className="w-full glass-card p-4 rounded-full flex items-center shadow-2xl border-white/10 max-w-4xl">
-        <Search className="ml-8 text-zinc-700" size={24} />
-        <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="BUSCAR POR PLACA, CARRO OU CLIENTE..." className="w-full bg-transparent border-none py-6 px-8 text-white font-black text-xs outline-none uppercase tracking-[0.2em] placeholder-zinc-800" />
+      <div className="w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-1.5 flex items-center shadow-2xl max-w-4xl">
+        <Search className="ml-4 text-zinc-700" size={20} />
+        <input 
+          type="text" 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+          placeholder="BUSCAR POR PLACA, CARRO OU CLIENTE..." 
+          className="w-full bg-transparent border-none py-3 px-4 text-white font-black text-xs outline-none uppercase tracking-widest placeholder-zinc-850" 
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">

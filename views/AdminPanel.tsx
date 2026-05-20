@@ -109,6 +109,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
   const [syncDelay, setSyncDelay] = useState(0.8);
   const [dbWeight, setDbWeight] = useState(3.42);
   const [isSyncAlive, setIsSyncAlive] = useState(true);
+  const [onlineSessions, setOnlineSessions] = useState<any[]>([]);
+
+  // Real-time online sessions presence listener
+  useEffect(() => {
+    const fetchPresence = async () => {
+      try {
+        const res = await fetch("/api/presence/rafael");
+        if (res.ok) {
+          const list = await res.json();
+          setOnlineSessions(list);
+        }
+      } catch (err) {
+        // quiet fail
+      }
+    };
+    fetchPresence();
+
+    const handlePresence = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (Array.isArray(detail)) {
+        setOnlineSessions(detail);
+      }
+    };
+    window.addEventListener('kaen_presence_updated', handlePresence);
+    return () => window.removeEventListener('kaen_presence_updated', handlePresence);
+  }, []);
 
   // New User Form State
   const [newUser, setNewUser] = useState({
@@ -873,70 +899,59 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
                     </div>
                   </div>
 
-                  {/* Device Grid Representation representing Tablet (Mechanic), Reception (Desktop), and Dono (Desktop Master) */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Item 1: PC recepção */}
-                    <div className="p-6 bg-zinc-950/60 rounded-3xl border border-white/5 relative overflow-hidden text-left flex flex-col justify-between h-48">
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 bg-white/5 rounded-2xl text-zinc-400">
-                          <Laptop size={20} />
-                        </div>
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded
-                        ${isSyncAlive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                          {isSyncAlive ? 'CONECTADO' : 'SEM LINK'}
-                        </span>
-                      </div>
-                      <div className="space-y-1 mt-4">
-                        <p className="text-xs font-black text-white uppercase italic">Guichê Recepção</p>
-                        <p className="text-[9px] text-zinc-500 leading-none">JANETE SILVA (Ativa)</p>
-                      </div>
-                      <div className="flex justify-between items-center text-[8px] font-bold text-zinc-650 uppercase pt-4 border-t border-white/5 mt-3">
-                        <span>IP: 192.168.1.150</span>
-                        <span>LATÊNCIA: {isSyncAlive ? `${latency}ms` : '---'}</span>
-                      </div>
-                    </div>
+                  {/* Real-time Dynamic Active Terminal Device Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {onlineSessions.map((sessionItem, sIdx) => {
+                      const isMe = sessionItem.activeUser === session?.activeUser;
+                      
+                      let IconComponent = Laptop;
+                      if (sessionItem.device === "Celular") IconComponent = Smartphone;
+                      if (sessionItem.device === "Tablet") {
+                        IconComponent = Smartphone; 
+                      }
 
-                    {/* Item 2: Tablet Oficina */}
-                    <div className="p-6 bg-zinc-950/60 rounded-3xl border border-white/5 relative overflow-hidden text-left flex flex-col justify-between h-48">
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 bg-white/5 rounded-2xl text-zinc-400">
-                          <Smartphone size={20} />
+                      return (
+                        <div 
+                          key={sessionItem.id || sIdx} 
+                          className={`p-6 bg-zinc-950/60 rounded-3xl border relative overflow-hidden text-left flex flex-col justify-between h-52 transition-all duration-300
+                          ${isMe ? 'border-[#FF2D55]/30 bg-[#FF2D55]/5 shadow-[0_15px_30px_rgba(255,45,85,0.06)]' : 'border-white/5 hover:border-white/10'}`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className={`p-3 rounded-2xl ${isMe ? 'bg-[#FF2D55]/10 text-[#FF2D55]' : 'bg-white/5 text-zinc-400'}`}>
+                              <IconComponent size={20} />
+                            </div>
+                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest
+                            ${isMe ? 'bg-[#FF2D55]/15 text-[#FF2D55]' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                              {isMe ? 'VOCÊ ATIVO' : 'ONLINE'}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-1 mt-4">
+                            <p className="text-sm font-black text-white uppercase italic">{sessionItem.realUsername}</p>
+                            <p className="text-[8.5px] font-bold text-zinc-500 leading-none uppercase tracking-widest">
+                              CARGO: {sessionItem.role || "Mecânico"}
+                            </p>
+                          </div>
+                          
+                          <div className="flex flex-col gap-1 pt-4 border-t border-white/5 mt-3 text-[8px] font-bold text-zinc-650 uppercase">
+                            <div className="flex justify-between">
+                              <span>Aparelho: {sessionItem.device}</span>
+                              <span className="text-zinc-500">IP: {sessionItem.ip}</span>
+                            </div>
+                            <div className="flex justify-between text-zinc-500 mt-0.5">
+                              <span>ENTRADA: {new Date(sessionItem.timestamp).toLocaleTimeString('pt-BR')}</span>
+                              <span className="text-emerald-500">CONECTADO</span>
+                            </div>
+                          </div>
                         </div>
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded animate-pulse
-                        ${isSyncAlive ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-red-500/10 text-red-500'}`}>
-                          {isSyncAlive ? 'MECÂNICO ATIVO' : 'CONGESTÃO'}
-                        </span>
+                      );
+                    })}
+                    
+                    {onlineSessions.length === 0 && (
+                      <div className="col-span-full py-12 text-center text-zinc-600 font-black text-[10px] uppercase tracking-widest border border-dashed border-white/5 rounded-3xl">
+                        Nenhum terminal operacional conectado ao stream.
                       </div>
-                      <div className="space-y-1 mt-4">
-                        <p className="text-xs font-black text-white uppercase italic">Tablet iPad Central</p>
-                        <p className="text-[9px] text-zinc-500 leading-none">EDUARDO M. (Sincronizado)</p>
-                      </div>
-                      <div className="flex justify-between items-center text-[8px] font-bold text-zinc-650 uppercase pt-4 border-t border-white/5 mt-3">
-                        <span>Canal: SSE Stream</span>
-                        <span>DELAY: {isSyncAlive ? `${syncDelay}s` : 'DEADLOG'}</span>
-                      </div>
-                    </div>
-
-                    {/* Item 3: Diretor/Dono Desktop */}
-                    <div className="p-6 bg-zinc-950/60 rounded-3xl border border-[#FF2D55]/10 relative overflow-hidden text-left flex flex-col justify-between h-48">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-[#FF2D55]/5 blur-[20px] rounded-full pointer-events-none"></div>
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 bg-[#FF2D55]/10 border border-[#FF2D55]/20 text-[#FF2D55] rounded-2xl">
-                          <Shield size={20} />
-                        </div>
-                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-[#FF2D55]/15 text-[#FF2D55]">
-                          PROTETINO MASTER
-                        </span>
-                      </div>
-                      <div className="space-y-1 mt-4">
-                        <p className="text-xs font-black text-white uppercase italic">Desktop Master Admin</p>
-                        <p className="text-[9px] text-zinc-400 leading-none">{session?.username?.toUpperCase() || ''} (Você)</p>
-                      </div>
-                      <div className="flex justify-between items-center text-[8px] font-bold text-zinc-650 uppercase pt-4 border-t border-white/5 mt-3">
-                        <span>Aparelho: Desktop Win</span>
-                        <span>IP REGISTRADO</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
