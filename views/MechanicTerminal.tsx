@@ -66,8 +66,14 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
 
   useEffect(() => {
     if (session) {
-      setVehicles(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]'));
-      setClients(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]'));
+      const load = () => {
+        setVehicles(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]'));
+        setClients(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]'));
+      };
+      
+      load();
+      window.addEventListener('kaen_storage_updated', load);
+      return () => window.removeEventListener('kaen_storage_updated', load);
     }
   }, [session]);
 

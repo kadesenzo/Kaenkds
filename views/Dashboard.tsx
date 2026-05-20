@@ -16,10 +16,16 @@ const Dashboard: React.FC<{ session?: UserSession }> = ({ session }) => {
 
   useEffect(() => {
     if (session) {
-      const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
-      const savedApps = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_appointments`) || '[]');
-      setOrders(savedOrders);
-      setAppointments(savedApps);
+      const load = () => {
+        const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
+        const savedApps = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_appointments`) || '[]');
+        setOrders(savedOrders);
+        setAppointments(savedApps);
+      };
+      
+      load();
+      window.addEventListener('kaen_storage_updated', load);
+      return () => window.removeEventListener('kaen_storage_updated', load);
     }
   }, [session]);
 
