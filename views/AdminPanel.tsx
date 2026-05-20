@@ -11,6 +11,7 @@ import { UserSession } from '../types';
 
 interface AdminPanelProps {
   session?: UserSession;
+  syncData?: (key: string, data: any) => Promise<void>;
 }
 
 interface AccessLog {
@@ -64,8 +65,20 @@ interface AppUser {
   deviceRegistered: string;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
   const [isUnlocked, setIsUnlocked] = useState(false);
+
+  // Synchronized state writer
+  const updateEntity = (key: string, data: any) => {
+    if (!session) return;
+    const userKey = `kaenpro_${session.username}_${key}`;
+    localStorage.setItem(userKey, JSON.stringify(data));
+    if (syncData) {
+      syncData(key, data).catch(e => console.error(`Failed to sync ${key}`, e));
+    } else {
+      window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+    }
+  };
   const [password, setPassword] = useState('');
   const [pinError, setPinError] = useState('');
   
@@ -159,7 +172,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
     if (savedPerms) {
       setPermissions(JSON.parse(savedPerms));
     } else {
-      localStorage.setItem(`kaenpro_${session.username}_permissions`, JSON.stringify(permissions));
+      updateEntity('permissions', permissions);
     }
 
     // 2. Load access logs
@@ -173,7 +186,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         { id: 'acc-3', username: session.username, role: 'Dono', device: 'Desktop Master (Windows 11 Chrome)', ip: '186.221.43.92', location: 'Remoto - Escritório Central', timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
         { id: 'acc-4', username: 'Thiago Rover', role: 'Funcionário', device: 'Celular Oficina (Samsung S23)', ip: '192.168.1.99', location: 'Local - Pátio Principal', timestamp: new Date(Date.now() - 3600000 * 5).toISOString() }
       ];
-      localStorage.setItem(`kaenpro_${session.username}_admin_accesses`, JSON.stringify(initialAccesses));
+      updateEntity('admin_accesses', initialAccesses);
       setAccesses(initialAccesses);
     }
 
@@ -188,7 +201,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         { id: 'log-3', user: session.username, device: 'Desktop Master', action: 'Ajustou tabela de serviços - Taxa básica alterada para R$ 220,00', module: 'Configurações', timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
         { id: 'log-4', user: 'Janete Silva', device: 'Guichê Central', action: 'Cadastrou veículo Corolla GXR (PLT-0192)', module: 'Cadastro de Clientes', timestamp: new Date(Date.now() - 1000 * 60 * 240).toISOString() }
       ];
-      localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(initialLogs));
+      updateEntity('admin_logs', initialLogs);
       setLogs(initialLogs);
     }
 
@@ -203,7 +216,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         { id: 'err-3', code: 'DB-DEADLOCK-901', module: 'Controlador Interno SQL', message: 'Deadlock temporário evitado na tabela de histórico de orçamentos simultâneos por múltiplos operadores.', severity: 'CRITICAL', status: 'RESOLVIDO', resolvedBy: session.username, timestamp: new Date(Date.now() - 3600000 * 3).toISOString() },
         { id: 'err-4', code: 'WS-DROPOUT-500', module: 'Mecanismo Realtime SSE', message: 'Conexão interrompida abruptamente pelo cliente Tablet Oficina (iPad). Reiniciando handshake.', severity: 'FATAL', status: 'RESOLVIDO', resolvedBy: 'Janete Silva', timestamp: new Date(Date.now() - 3600000 * 6).toISOString() }
       ];
-      localStorage.setItem(`kaenpro_${session.username}_admin_errors`, JSON.stringify(initialErrors));
+      updateEntity('admin_errors', initialErrors);
       setErrors(initialErrors);
     }
 
@@ -218,7 +231,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         { id: 'inv-3', osNumber: '1288', client: 'Roberto Mendes Neves', value: 412.00, status: 'PENDENTE_VALIDACAO', reason: 'Processando aprovação manual na SEFAZ SP', timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), resolved: false },
         { id: 'inv-4', osNumber: '1279', client: 'Vivian Toledo', value: 1205.50, status: 'AUTENTICADA', reason: 'Sucesso absoluto', timestamp: new Date(Date.now() - 3600000 * 18).toISOString(), resolved: true }
       ];
-      localStorage.setItem(`kaenpro_${session.username}_admin_invoices`, JSON.stringify(initialInvoices));
+      updateEntity('admin_invoices', initialInvoices);
       setInvoices(initialInvoices);
     }
 
@@ -233,7 +246,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         { id: 'usr-3', name: 'Janete Silva', username: 'janete', role: 'Recepção', status: 'ATIVO', lastLogin: new Date(Date.now() - 1000 * 650).toISOString(), deviceRegistered: 'Desktop Recepção (Linux Chrome)' },
         { id: 'usr-4', name: 'Thiago Rover', username: 'thiago', role: 'Funcionário', status: 'ATIVO', lastLogin: new Date(Date.now() - 3600000 * 12).toISOString(), deviceRegistered: 'Smartphone (Android)' }
       ];
-      localStorage.setItem(`kaenpro_${session.username}_admin_users`, JSON.stringify(initialUsers));
+      updateEntity('admin_users', initialUsers);
       setUsers(initialUsers);
     }
   }, [session]);
@@ -266,11 +279,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
   useEffect(() => {
     if (!session || !isUnlocked) return;
     const handleRemoteUpdate = () => {
-      // Re-load logs, accesses, errors dynamically
-      const savedLogs = localStorage.getItem(`kaenpro_${session.username}_admin_logs`);
+      const tenant = session.username;
+
+      const savedPerms = localStorage.getItem(`kaenpro_${tenant}_permissions`);
+      if (savedPerms) setPermissions(JSON.parse(savedPerms));
+
+      const savedAccesses = localStorage.getItem(`kaenpro_${tenant}_admin_accesses`);
+      if (savedAccesses) setAccesses(JSON.parse(savedAccesses));
+
+      const savedLogs = localStorage.getItem(`kaenpro_${tenant}_admin_logs`);
       if (savedLogs) setLogs(JSON.parse(savedLogs));
-      const savedErrors = localStorage.getItem(`kaenpro_${session.username}_admin_errors`);
+
+      const savedErrors = localStorage.getItem(`kaenpro_${tenant}_admin_errors`);
       if (savedErrors) setErrors(JSON.parse(savedErrors));
+
+      const savedInvoices = localStorage.getItem(`kaenpro_${tenant}_admin_invoices`);
+      if (savedInvoices) setInvoices(JSON.parse(savedInvoices));
+
+      const savedUsers = localStorage.getItem(`kaenpro_${tenant}_admin_users`);
+      if (savedUsers) setUsers(JSON.parse(savedUsers));
     };
     window.addEventListener('kaen_storage_updated', handleRemoteUpdate);
     return () => window.removeEventListener('kaen_storage_updated', handleRemoteUpdate);
@@ -296,11 +323,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
           timestamp: new Date().toISOString()
         };
         const updated = [newLog, ...currentLogs];
-        localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(updated));
+        updateEntity('admin_logs', updated);
         setLogs(updated);
-
-        // Notify storage update
-        window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
       }
     } else {
       setPinError('SENHA RESTRITA INCORRETA. CONTATO COM DESENVOLVEDOR EXIGIDO.');
@@ -343,7 +367,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         if (targetId) {
           const updatedUsers = users.filter(u => u.id !== targetId);
           setUsers(updatedUsers);
-          localStorage.setItem(`kaenpro_${session.username}_admin_users`, JSON.stringify(updatedUsers));
+          updateEntity('admin_users', updatedUsers);
           
           // Log deletion
           const auditLog: ActivityLog = {
@@ -355,9 +379,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             timestamp: new Date().toISOString()
           };
           const nextLogs = [auditLog, ...currentLogs];
-          localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+          updateEntity('admin_logs', nextLogs);
           setLogs(nextLogs);
-          window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         break;
 
@@ -371,7 +394,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             return u;
           });
           setUsers(updated);
-          localStorage.setItem(`kaenpro_${session.username}_admin_users`, JSON.stringify(updated));
+          updateEntity('admin_users', updated);
           
           // Log alteration
           const auditLog: ActivityLog = {
@@ -383,24 +406,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             timestamp: new Date().toISOString()
           };
           const nextLogs = [auditLog, ...currentLogs];
-          localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+          updateEntity('admin_logs', nextLogs);
           setLogs(nextLogs);
-          window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         break;
 
       case 'PURGE_LOGS':
-        localStorage.removeItem(`kaenpro_${session.username}_admin_logs`);
+        updateEntity('admin_logs', []);
         setLogs([]);
         break;
 
       case 'RESET_DB':
         // Purges all mock data inside this local account session to start clean
-        localStorage.removeItem(`kaenpro_${session.username}_orders`);
-        localStorage.removeItem(`kaenpro_${session.username}_vehicles`);
-        localStorage.removeItem(`kaenpro_${session.username}_clients`);
-        localStorage.removeItem(`kaenpro_${session.username}_parts`);
-        localStorage.removeItem(`kaenpro_${session.username}_transactions`);
+        updateEntity('orders', []);
+        updateEntity('vehicles', []);
+        updateEntity('clients', []);
+        updateEntity('parts', []);
+        updateEntity('transactions', []);
         
         // Log deep system reset
         const clearLogObj: ActivityLog = {
@@ -411,9 +433,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
           module: 'Sistemas',
           timestamp: new Date().toISOString()
         };
-        localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify([clearLogObj]));
+        updateEntity('admin_logs', [clearLogObj]);
         setLogs([clearLogObj]);
-        window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         alert('Banco de dados operacional reiniciado com sucesso! Recarregue qualquer tela.');
         break;
 
@@ -426,7 +447,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             return err;
           });
           setErrors(resolvedSrc);
-          localStorage.setItem(`kaenpro_${session.username}_admin_errors`, JSON.stringify(resolvedSrc));
+          updateEntity('admin_errors', resolvedSrc);
           
           const auditLog: ActivityLog = {
             id: `audit-${Date.now()}`,
@@ -437,9 +458,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             timestamp: new Date().toISOString()
           };
           const nextLogs = [auditLog, ...currentLogs];
-          localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+          updateEntity('admin_logs', nextLogs);
           setLogs(nextLogs);
-          window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         break;
 
@@ -452,7 +472,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             return inv;
           });
           setInvoices(reissued);
-          localStorage.setItem(`kaenpro_${session.username}_admin_invoices`, JSON.stringify(reissued));
+          updateEntity('admin_invoices', reissued);
 
           const auditLog: ActivityLog = {
             id: `audit-${Date.now()}`,
@@ -463,16 +483,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             timestamp: new Date().toISOString()
           };
           const nextLogs = [auditLog, ...currentLogs];
-          localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+          updateEntity('admin_logs', nextLogs);
           setLogs(nextLogs);
-          window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         break;
 
       case 'SAVE_PERMS':
         if (targetMeta) {
           setPermissions(targetMeta);
-          localStorage.setItem(`kaenpro_${session.username}_permissions`, JSON.stringify(targetMeta));
+          updateEntity('permissions', targetMeta);
           
           const auditLog: ActivityLog = {
             id: `audit-${Date.now()}`,
@@ -483,9 +502,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
             timestamp: new Date().toISOString()
           };
           const nextLogs = [auditLog, ...currentLogs];
-          localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+          updateEntity('admin_logs', nextLogs);
           setLogs(nextLogs);
-          window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         break;
     }
@@ -511,7 +529,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
       );
     } else {
       setPermissions(nextPerms);
-      localStorage.setItem(`kaenpro_${session.username}_permissions`, JSON.stringify(nextPerms));
+      updateEntity('permissions', nextPerms);
       
       const currentLogs = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_admin_logs`) || '[]');
       const newLog: ActivityLog = {
@@ -523,9 +541,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         timestamp: new Date().toISOString()
       };
       const updatedLogs = [newLog, ...currentLogs];
-      localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(updatedLogs));
+      updateEntity('admin_logs', updatedLogs);
       setLogs(updatedLogs);
-      window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
     }
   };
 
@@ -553,7 +570,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
 
     const nextUsers = [...users, created];
     setUsers(nextUsers);
-    localStorage.setItem(`kaenpro_${session.username}_admin_users`, JSON.stringify(nextUsers));
+    updateEntity('admin_users', nextUsers);
 
     // Also update general technical employees list to align workspaces perfectly
     const teamDbStr = localStorage.getItem(`kaenpro_${session.username}_employees`) || '[]';
@@ -568,7 +585,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
         status: 'Ativo' as const,
         createdAt: new Date().toISOString()
       };
-      localStorage.setItem(`kaenpro_${session.username}_employees`, JSON.stringify([...teamDb, alignedEmployee]));
+      updateEntity('employees', [...teamDb, alignedEmployee]);
     } catch (err) {
       console.error('Failed to align account creation in employee team list', err);
     }
@@ -593,9 +610,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
       timestamp: new Date().toISOString()
     };
     const nextLogs = [auditLog, ...currentLogs];
-    localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+    updateEntity('admin_logs', nextLogs);
     setLogs(nextLogs);
-    window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
   };
 
   // Simulates a random real-time warning, database dropout or SEFAZ invoice failure
@@ -618,7 +634,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
 
     const nextErrors = [newErr, ...errors];
     setErrors(nextErrors);
-    localStorage.setItem(`kaenpro_${session.username}_admin_errors`, JSON.stringify(nextErrors));
+    updateEntity('admin_errors', nextErrors);
 
     // Register active incident in Logs
     const currentLogs = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_admin_logs`) || '[]');
@@ -630,9 +646,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session }) => {
       module: 'Mecanismo Realtime SSE',
       timestamp: new Date().toISOString()
     };
-    localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify([auditLog, ...currentLogs]));
-    setLogs([auditLog, ...currentLogs]);
-    window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+    const nextLogs = [auditLog, ...currentLogs];
+    updateEntity('admin_logs', nextLogs);
+    setLogs(nextLogs);
   };
 
   // Filter components logic

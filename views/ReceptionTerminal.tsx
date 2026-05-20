@@ -41,7 +41,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     }
   }, [session]);
 
-  const addLog = (action: string) => {
+  const addLog = async (action: string) => {
     if (!session) return;
     const currentLogs = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_admin_logs`) || '[]');
     const newLog = {
@@ -51,7 +51,13 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
       action,
       timestamp: new Date().toISOString()
     };
-    localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify([newLog, ...currentLogs]));
+    const nextLogs = [newLog, ...currentLogs];
+    if (syncData) {
+      await syncData('admin_logs', nextLogs);
+    } else {
+      localStorage.setItem(`kaenpro_${session.username}_admin_logs`, JSON.stringify(nextLogs));
+      window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+    }
   };
 
   const handleUpdateStatus = async (orderId: string, newStatus: OSStatus) => {

@@ -19,9 +19,9 @@ import {
   TrendingUp,
   ExternalLink
 } from 'lucide-react';
-import { Vehicle, Client, ServiceOrder, OSStatus, PaymentStatus, OSItem } from '../types';
+import { Vehicle, Client, ServiceOrder, OSStatus, PaymentStatus, OSItem, UserSession } from '../types';
 
-const VehicleDetails: React.FC = () => {
+const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ session, syncData }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
@@ -39,9 +39,10 @@ const VehicleDetails: React.FC = () => {
   });
 
   useEffect(() => {
-    const savedVehicles = JSON.parse(localStorage.getItem('kaenpro_vehicles') || '[]');
-    const savedClients = JSON.parse(localStorage.getItem('kaenpro_clients') || '[]');
-    const savedOrders = JSON.parse(localStorage.getItem('kaenpro_orders') || '[]');
+    const tenant = session?.username || 'rafael';
+    const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_vehicles`) || '[]');
+    const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_clients`) || '[]');
+    const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_orders`) || '[]');
 
     const foundVehicle = savedVehicles.find((v: Vehicle) => v.id === id);
     if (foundVehicle) {
@@ -54,7 +55,7 @@ const VehicleDetails: React.FC = () => {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ));
     }
-  }, [id]);
+  }, [id, session]);
 
   if (!vehicle) {
     return (
@@ -71,7 +72,7 @@ const VehicleDetails: React.FC = () => {
   const totalSpent = history.reduce((acc, curr) => acc + curr.totalValue, 0);
   const lastVisit = history.length > 0 ? new Date(history[0].createdAt).toLocaleDateString('pt-BR') : 'Nenhuma';
 
-  const handleAddQuickService = () => {
+  const handleAddQuickService = async () => {
     if (!newService.description) {
       alert("Informe a descrição do serviço.");
       return;
@@ -100,16 +101,27 @@ const VehicleDetails: React.FC = () => {
     setHistory(updatedHistory);
     
     // Update Global State
-    const savedOrders = JSON.parse(localStorage.getItem('kaenpro_orders') || '[]');
-    localStorage.setItem('kaenpro_orders', JSON.stringify([...savedOrders, newOs]));
+    const tenant = session?.username || 'rafael';
+    const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_orders`) || '[]');
+    const nextOrders = [...savedOrders, newOs];
+    
+    if (syncData) {
+      await syncData('orders', nextOrders);
+    } else {
+      localStorage.setItem(`kaenpro_${tenant}_orders`, JSON.stringify(nextOrders));
+    }
     
     // Update Vehicle KM
     if (newService.km) {
-      const savedVehicles = JSON.parse(localStorage.getItem('kaenpro_vehicles') || '[]');
+      const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_vehicles`) || '[]');
       const updatedVehicles = savedVehicles.map((v: Vehicle) => 
         v.id === vehicle.id ? { ...v, km: parseFloat(newService.km) } : v
       );
-      localStorage.setItem('kaenpro_vehicles', JSON.stringify(updatedVehicles));
+      if (syncData) {
+        await syncData('vehicles', updatedVehicles);
+      } else {
+        localStorage.setItem(`kaenpro_${tenant}_vehicles`, JSON.stringify(updatedVehicles));
+      }
       setVehicle({ ...vehicle, km: parseFloat(newService.km) });
     }
 

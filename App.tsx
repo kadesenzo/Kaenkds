@@ -217,7 +217,7 @@ const App: React.FC = () => {
         case 'RECEPCAO':
           return <ReceptionTerminal session={session} syncData={syncData} />;
         case 'ADMIN':
-          return <AdminPanel session={session} />;
+          return <AdminPanel session={session} syncData={syncData} />;
         case 'PRINCIPAL':
         default:
           return React.isValidElement(children) 

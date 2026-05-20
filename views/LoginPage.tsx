@@ -147,8 +147,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       localStorage.setItem('kaenpro_rafael_admin_users', JSON.stringify(updatedUsers));
 
       // Append accesses log
-      const accessesKey = 'kaenpro_rafael_admin_accesses';
-      const currentAccesses = JSON.parse(localStorage.getItem(accessesKey) || '[]');
+      let cloudAccesses: any[] = [];
+      let cloudLogs: any[] = [];
+      try {
+        const syncRes = await fetch('/api/sync/rafael');
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          cloudAccesses = syncData.admin_accesses || [];
+          cloudLogs = syncData.admin_logs || [];
+        }
+      } catch (err) {
+        console.warn("Failed to fetch cloud accesses/logs for initial seed. Falling back to local.", err);
+        cloudAccesses = JSON.parse(localStorage.getItem('kaenpro_rafael_admin_accesses') || '[]');
+        cloudLogs = JSON.parse(localStorage.getItem('kaenpro_rafael_admin_logs') || '[]');
+      }
+
       const newAccess = {
         id: `acc-${Date.now()}`,
         username: checkUser.name,
@@ -158,11 +171,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         location: 'Kaen Oficina - Pátio Principal',
         timestamp
       };
-      localStorage.setItem(accessesKey, JSON.stringify([newAccess, ...currentAccesses]));
 
-      // Append general audit log
-      const logsKey = 'kaenpro_rafael_admin_logs';
-      const currentLogs = JSON.parse(localStorage.getItem(logsKey) || '[]');
       const newAudit = {
         id: `log-${Date.now()}`,
         user: checkUser.name,
@@ -171,7 +180,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         module: 'Sessão de Sistema',
         timestamp
       };
-      localStorage.setItem(logsKey, JSON.stringify([newAudit, ...currentLogs]));
+
+      const updatedAccesses = [newAccess, ...cloudAccesses];
+      const updatedLogs = [newAudit, ...cloudLogs];
+
+      // Save locally for backup
+      localStorage.setItem('kaenpro_rafael_admin_accesses', JSON.stringify(updatedAccesses));
+      localStorage.setItem('kaenpro_rafael_admin_logs', JSON.stringify(updatedLogs));
+
+      // Post back to database for full synchronization across devices
+      try {
+        await fetch('/api/sync/rafael/admin_accesses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedAccesses)
+        });
+        await fetch('/api/sync/rafael/admin_logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedLogs)
+        });
+      } catch (err) {
+        console.error("Failed to POST updated login logs to server", err);
+      }
 
       onLogin('rafael', checkUser.role, checkUser.name, checkUser.username);
     } else {

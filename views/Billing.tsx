@@ -87,7 +87,7 @@ const Billing: React.FC<{ session?: UserSession; syncData?: (key: string, data: 
     return baseMessages[billingLevel];
   };
 
-  const sendWhatsApp = (os: ServiceOrder) => {
+  const sendWhatsApp = async (os: ServiceOrder) => {
     const client = clients.find(c => c.id === os.clientId);
     if (!client) return;
 
@@ -106,7 +106,11 @@ const Billing: React.FC<{ session?: UserSession; syncData?: (key: string, data: 
     } : o);
     
     setOrders(updatedOrders);
-    localStorage.setItem('kaenpro_orders', JSON.stringify(updatedOrders));
+    if (session && syncData) {
+      await syncData('orders', updatedOrders);
+    } else {
+      localStorage.setItem(`kaenpro_${session?.username || 'rafael'}_orders`, JSON.stringify(updatedOrders));
+    }
     
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
