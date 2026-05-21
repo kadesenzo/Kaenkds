@@ -1,17 +1,33 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
 const PORT = 3000;
-const DB_PATH = path.join(process.cwd(), "kaen_db.json");
+
+// Vercel environment has a read-only filesystem except for /tmp.
+// We make the DB_PATH point to /tmp/kaen_db.json when running on Vercel
+// so file writes will not crash, and we pre-populate it from the workspace template if present.
+const DB_PATH = process.env.VERCEL
+  ? "/tmp/kaen_db.json"
+  : path.join(process.cwd(), "kaen_db.json");
 
 app.use(express.json({ limit: "50mb" }));
 
 // Load database state helper
 function readDb() {
   try {
+    if (process.env.VERCEL) {
+      const workspaceTemplate = path.join(process.cwd(), "kaen_db.json");
+      if (!fs.existsSync(DB_PATH) && fs.existsSync(workspaceTemplate)) {
+        try {
+          fs.copyFileSync(workspaceTemplate, DB_PATH);
+          console.log("Seeded database to /tmp directory from workspace template.");
+        } catch (copyErr) {
+          console.error("Error seeding template database to /tmp:", copyErr);
+        }
+      }
+    }
     if (fs.existsSync(DB_PATH)) {
       return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     }
@@ -320,6 +336,7 @@ app.post("/api/presence/disconnect/:username/:sessionId", (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
