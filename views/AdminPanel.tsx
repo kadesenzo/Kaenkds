@@ -128,7 +128,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
   useEffect(() => {
     const fetchPresence = async () => {
       try {
-        const res = await fetch("/api/presence/rafael");
+        const tenant = session?.username || 'rafael';
+        const res = await fetch(`/api/presence/${tenant}`);
         if (res.ok) {
           const list = await res.json();
           setOnlineSessions(list);
@@ -949,15 +950,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                             </p>
                           </div>
                           
-                          <div className="flex flex-col gap-1 pt-4 border-t border-white/5 mt-3 text-[8px] font-bold text-zinc-650 uppercase">
+                          <div className="flex flex-col gap-1 pt-4 border-t border-white/5 mt-3 text-[8px] font-bold text-zinc-600 uppercase">
                             <div className="flex justify-between">
                               <span>Aparelho: {sessionItem.device}</span>
                               <span className="text-zinc-500">IP: {sessionItem.ip}</span>
                             </div>
                             <div className="flex justify-between text-zinc-500 mt-0.5">
                               <span>ENTRADA: {new Date(sessionItem.timestamp).toLocaleTimeString('pt-BR')}</span>
-                              <span className="text-emerald-500">CONECTADO</span>
+                              <span className="text-[#FF2D55]">CONECTADO</span>
                             </div>
+
+                            {!isMe && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!window.confirm(`Deseja revogar o token e forçar a desconexão imediata do aparelho de ${sessionItem.realUsername}?`)) return;
+                                  try {
+                                    const tenant = session?.username || 'rafael';
+                                    const res = await fetch(`/api/presence/disconnect/${tenant}/${sessionItem.id}`, { method: 'POST' });
+                                    if (res.ok) {
+                                      const res2 = await fetch(`/api/presence/${tenant}`);
+                                      if (res2.ok) {
+                                        setOnlineSessions(await res2.json());
+                                      }
+                                    } else {
+                                      alert("Dispositivo remoto já se desconectou.");
+                                    }
+                                  } catch (e) {
+                                    alert("Falha na requisição para o servidor.");
+                                  }
+                                }}
+                                className="mt-2 text-[#FF2D55] text-left text-[8px] font-black tracking-[0.2em] hover:underline uppercase transition-all"
+                              >
+                                [ ✕ FORÇAR DESCONEXÃO IMEDIATA ]
+                              </button>
+                            )}
                           </div>
                         </div>
                       );

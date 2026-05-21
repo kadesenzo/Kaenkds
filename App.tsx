@@ -108,6 +108,12 @@ const App: React.FC = () => {
             window.dispatchEvent(new CustomEvent("kaen_presence_updated", { detail: data.sessions }));
             return;
           }
+
+          if (data && data.type === "force_disconnect") {
+            handleLogout();
+            alert("SUA CONEXÃO FOI ENCERRADA PELO ADMINISTRADOR DO SISTEMA: DISPOSITIVO REMOVIDO.");
+            return;
+          }
           
           if (data && data.type === "connected") {
             // Success response confirmation
@@ -134,8 +140,46 @@ const App: React.FC = () => {
     
     connectStream();
 
+    // 3. Hybrid Background Poll (essential for Serverless/Vercel environments and mobile connections)
+    const pollInterval = setInterval(async () => {
+      // Poll database synchronization keys
+      try {
+        const res = await fetch(`/api/sync/${tenant}`);
+        if (res.ok) {
+          const data = await res.json();
+          let anyChanged = false;
+          for (const [key, value] of Object.entries(data)) {
+            const userKey = `kaenpro_${tenant}_${key}`;
+            const localRaw = localStorage.getItem(userKey);
+            const serverRaw = JSON.stringify(value);
+            if (localRaw !== serverRaw) {
+              localStorage.setItem(userKey, serverRaw);
+              anyChanged = true;
+            }
+          }
+          if (anyChanged) {
+            window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+          }
+        }
+      } catch (err) {
+        console.warn("Background db sync poll encountered network latency.", err);
+      }
+
+      // Poll presence terminal list
+      try {
+        const res = await fetch(`/api/presence/${tenant}`);
+        if (res.ok) {
+          const list = await res.json();
+          window.dispatchEvent(new CustomEvent("kaen_presence_updated", { detail: list }));
+        }
+      } catch (err) {
+        console.warn("Background presence update poll encountered network latency.", err);
+      }
+    }, 6000);
+
     return () => {
       eventSource?.close();
+      clearInterval(pollInterval);
     };
   }, [session]);
 
@@ -243,6 +287,7 @@ const App: React.FC = () => {
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             workspaceMode={workspaceMode}
             onWorkspaceModeChange={handleWorkspaceModeChange}
+            tenant={session.username}
           />
           
           <main className="flex-1 overflow-y-auto overflow-x-visible bg-[#050505] scroll-smooth overscroll-contain no-scrollbar flex flex-col items-center">

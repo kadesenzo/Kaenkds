@@ -10,11 +10,12 @@ interface HeaderProps {
   syncStatus: SyncStatus;
   workspaceMode: 'PRINCIPAL' | 'MECANICO' | 'RECEPCAO' | 'ADMIN';
   onWorkspaceModeChange: (mode: 'PRINCIPAL' | 'MECANICO' | 'RECEPCAO' | 'ADMIN') => void;
+  tenant?: string;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
   onLogout, onToggleSidebar, role, username, syncStatus, 
-  workspaceMode, onWorkspaceModeChange 
+  workspaceMode, onWorkspaceModeChange, tenant
 }) => {
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
 
@@ -23,7 +24,8 @@ const Header: React.FC<HeaderProps> = ({
     // Initial fetch of presence as safe startup check
     const fetchPresence = async () => {
       try {
-        const res = await fetch("/api/presence/rafael");
+        const tenantCode = tenant || "rafael";
+        const res = await fetch(`/api/presence/${tenantCode}`);
         if (res.ok) {
           const list = await res.json();
           setOnlineUsers(list);

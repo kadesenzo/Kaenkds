@@ -147,6 +147,26 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     localStorage.setItem(`kaenpro_${session.username}_transactions`, JSON.stringify([newTransaction, ...savedTransactions]));
     await syncData('transactions', [newTransaction, ...savedTransactions]);
 
+    // Track in admin_invoices for real-time monitoring under AdminPanel
+    try {
+      const savedInvoices = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_admin_invoices`) || '[]');
+      const newInvoiceObj = {
+        id: `inv-${Date.now()}`,
+        osNumber: order.osNumber,
+        client: order.clientName,
+        value: order.totalValue,
+        status: 'AUTENTICADA' as const,
+        reason: 'Sucesso absoluto - emitida via terminal recepção',
+        timestamp: new Date().toISOString(),
+        resolved: true
+      };
+      const updatedInvoices = [newInvoiceObj, ...savedInvoices];
+      localStorage.setItem(`kaenpro_${session.username}_admin_invoices`, JSON.stringify(updatedInvoices));
+      await syncData('admin_invoices', updatedInvoices);
+    } catch (err) {
+      console.error("Failed to sync invoice to admin monitoring logs", err);
+    }
+
     alert("ATENDIMENTO FINALIZADO COM SUCESSO! Nota fiscal emitida e lançada no fluxo de caixa.");
     setSelectedOrder(null);
   };

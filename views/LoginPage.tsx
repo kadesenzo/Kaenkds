@@ -73,6 +73,14 @@ const DEFAULT_USERS: AppUser[] = [
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [tenant, setTenant] = useState(() => {
+    try {
+      return localStorage.getItem('kaenpro_last_tenant') || 'rafael';
+    } catch {
+      return 'rafael';
+    }
+  });
+  const [roomPassword, setRoomPassword] = useState('');
   const [username, setUsername] = useState('rafael');
   const [password, setPassword] = useState('enzo1234');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -88,21 +96,52 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [recoveryError, setRecoveryError] = useState('');
   const [recoveredPass, setRecoveredPass] = useState('');
 
-  // Settle users db on mount
+  // Room Creation States
+  const [showRoomCreator, setShowRoomCreator] = useState(false);
+  const [newRoomId, setNewRoomId] = useState('');
+  const [newRoomPassword, setNewRoomPassword] = useState('');
+  const [newRoomName, setNewRoomName] = useState('');
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [roomCreatorError, setRoomCreatorError] = useState('');
+  const [roomCreatorSuccess, setRoomCreatorSuccess] = useState('');
+
+  // Dynamically load users when server code changes
   useEffect(() => {
-    const saved = localStorage.getItem('kaenpro_rafael_admin_users');
-    if (saved) {
-      try {
-        setUsers(JSON.parse(saved));
-      } catch (err) {
-        setUsers(DEFAULT_USERS);
-        localStorage.setItem('kaenpro_rafael_admin_users', JSON.stringify(DEFAULT_USERS));
+    const syncAndLoadUsers = async () => {
+      // 1. Initial local load
+      const saved = localStorage.getItem(`kaenpro_${tenant}_admin_users`);
+      let loadedUsers = DEFAULT_USERS;
+      if (saved) {
+        try {
+          loadedUsers = JSON.parse(saved);
+        } catch {
+          loadedUsers = DEFAULT_USERS;
+        }
       }
-    } else {
-      setUsers(DEFAULT_USERS);
-      localStorage.setItem('kaenpro_rafael_admin_users', JSON.stringify(DEFAULT_USERS));
+      setUsers(loadedUsers);
+
+      // Save tenant code index
+      localStorage.setItem('kaenpro_last_tenant', tenant);
+
+      // 2. Query cloud database to synchronize users for this server/tenant
+      try {
+        const res = await fetch(`/api/sync/${tenant}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.admin_users && Array.isArray(data.admin_users)) {
+            setUsers(data.admin_users);
+            localStorage.setItem(`kaenpro_${tenant}_admin_users`, JSON.stringify(data.admin_users));
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load cloud user database for server code:", tenant, err);
+      }
+    };
+
+    if (tenant) {
+      syncAndLoadUsers();
     }
-  }, []);
+  }, [tenant]);
 
   const detectDevice = () => {
     const ua = navigator.userAgent;
@@ -111,17 +150,81 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     return "Computador Desktop";
   };
 
+  const handleCreateRoomSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRoomCreatorError('');
+    setRoomCreatorSuccess('');
+    setIsCreatingRoom(true);
+
+    try {
+      const res = await fetch("/api/rooms/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: newRoomId,
+          password: newRoomPassword,
+          name: newRoomName
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setRoomCreatorError(data.error || "Houve um erro desconhecido ao criar a oficina.");
+      } else {
+        setRoomCreatorSuccess(`OFICINA REGISTRADA! ID: ${newRoomId.toUpperCase()}`);
+        setTenant(newRoomId.toLowerCase());
+        setRoomPassword(newRoomPassword);
+        setTimeout(() => {
+          setShowRoomCreator(false);
+          setNewRoomId('');
+          setNewRoomPassword('');
+          setNewRoomName('');
+          setRoomCreatorSuccess('');
+        }, 2000);
+      }
+    } catch (err) {
+      setRoomCreatorError("Erro de comunicação com a api central.");
+    } finally {
+      setIsCreatingRoom(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setError('');
 
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 800));
+
+    // Dynamic Room validation if not default "rafael"
+    if (tenant.trim().toLowerCase() !== "rafael") {
+      try {
+        const roomJoinRes = await fetch("/api/rooms/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId: tenant.trim().toLowerCase(),
+            password: roomPassword
+          })
+        });
+
+        if (!roomJoinRes.ok) {
+          const roomErr = await roomJoinRes.json();
+          setError(`ACESSO SALA BLOQUEADO: ${roomErr.error || 'Código da oficina ou senha inválidos.'}`);
+          setIsLoggingIn(false);
+          return;
+        }
+      } catch (err) {
+        setError("ERRO DE REDE: Falha em autenticar conexão com a sala.");
+        setIsLoggingIn(false);
+        return;
+      }
+    }
 
     const checkUser = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
 
     if (!checkUser) {
-      setError('ACESSO CORTADO: USUÁRIO NÃO ENCONTRADO NO BACKEND.');
+      setError('ACESSO CORTADO: USUÁRIO NÃO ENCONTRADO NO BACKEND DA OFICINA.');
       setIsLoggingIn(false);
       return;
     }
@@ -144,13 +247,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       // Update users last login
       const updatedUsers = users.map(u => u.id === checkUser.id ? { ...u, lastLogin: timestamp } : u);
       setUsers(updatedUsers);
-      localStorage.setItem('kaenpro_rafael_admin_users', JSON.stringify(updatedUsers));
+      localStorage.setItem(`kaenpro_${tenant}_admin_users`, JSON.stringify(updatedUsers));
 
       // Append accesses log
       let cloudAccesses: any[] = [];
       let cloudLogs: any[] = [];
       try {
-        const syncRes = await fetch('/api/sync/rafael');
+        const syncRes = await fetch(`/api/sync/${tenant}`);
         if (syncRes.ok) {
           const syncData = await syncRes.json();
           cloudAccesses = syncData.admin_accesses || [];
@@ -158,8 +261,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         }
       } catch (err) {
         console.warn("Failed to fetch cloud accesses/logs for initial seed. Falling back to local.", err);
-        cloudAccesses = JSON.parse(localStorage.getItem('kaenpro_rafael_admin_accesses') || '[]');
-        cloudLogs = JSON.parse(localStorage.getItem('kaenpro_rafael_admin_logs') || '[]');
+        cloudAccesses = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_admin_accesses`) || '[]');
+        cloudLogs = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_admin_logs`) || '[]');
       }
 
       const newAccess = {
@@ -185,26 +288,31 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const updatedLogs = [newAudit, ...cloudLogs];
 
       // Save locally for backup
-      localStorage.setItem('kaenpro_rafael_admin_accesses', JSON.stringify(updatedAccesses));
-      localStorage.setItem('kaenpro_rafael_admin_logs', JSON.stringify(updatedLogs));
+      localStorage.setItem(`kaenpro_${tenant}_admin_accesses`, JSON.stringify(updatedAccesses));
+      localStorage.setItem(`kaenpro_${tenant}_admin_logs`, JSON.stringify(updatedLogs));
 
       // Post back to database for full synchronization across devices
       try {
-        await fetch('/api/sync/rafael/admin_accesses', {
+        await fetch(`/api/sync/${tenant}/admin_accesses`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedAccesses)
         });
-        await fetch('/api/sync/rafael/admin_logs', {
+        await fetch(`/api/sync/${tenant}/admin_logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updatedLogs)
+        });
+        await fetch(`/api/sync/${tenant}/admin_users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedUsers)
         });
       } catch (err) {
         console.error("Failed to POST updated login logs to server", err);
       }
 
-      onLogin('rafael', checkUser.role, checkUser.name, checkUser.username);
+      onLogin(tenant, checkUser.role, checkUser.name, checkUser.username);
     } else {
       setError('CHAVE PRIVADA INCORRETA: ACESSO BLOQUEADO PELO NÚCLEO.');
       setIsLoggingIn(false);
@@ -268,6 +376,49 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               </div>
             )}
 
+            {/* INTEGRATED SERVER KEY / WORKSHOP CODE */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-4">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] block italic">CÓDIGO DA OFICINA</label>
+                <button
+                  type="button"
+                  onClick={() => setShowRoomCreator(true)}
+                  className="text-[#FF2D55] text-[9px] font-black uppercase tracking-widest hover:underline italic"
+                >
+                  + CRIAR NOVA SALA
+                </button>
+              </div>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="EX: OFICINA-458"
+                  value={tenant} 
+                  onChange={(e) => setTenant(e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, ''))} 
+                  className="w-full bg-zinc-950 border border-white/10 rounded-2xl px-12 py-4 text-white hover:border-[#FF2D55]/30 focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest text-center shadow-inner"
+                />
+                <Cloud size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
+              </div>
+              
+              {tenant !== "rafael" && (
+                <div className="space-y-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block pl-4 italic text-left">SENHA DE ACESSO À OFICINA</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="SENHA DA OFICINA"
+                    value={roomPassword}
+                    onChange={(e) => setRoomPassword(e.target.value)}
+                    className="w-full bg-zinc-950/70 border border-white/10 rounded-2xl px-4 py-3.5 text-white focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest text-center shadow-inner"
+                  />
+                </div>
+              )}
+              
+              <p className="text-[8px] text-zinc-600 uppercase tracking-widest text-center select-none leading-relaxed px-2">
+                Qualquer celular, tablet ou computador com o mesmo código acessa a mesma oficina em tempo real!
+              </p>
+            </div>
+
             {/* Account Profile Quick Selector */}
             <div className="space-y-3">
               <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] ml-4 text-left block italic">SELECIONE SEU PERFIL</label>
@@ -284,7 +435,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                       type="button"
                       onClick={() => {
                         setUsername(it.username);
-                        setPassword(it.username === 'rafael' ? 'enzo1234' : it.username === 'janete' ? 'rec1234' : 'mec1234');
+                        const match = users.find(u => u.username === it.username);
+                        setPassword(match?.password || (it.username === 'rafael' ? 'enzo1234' : it.username === 'janete' ? 'rec1234' : 'mec1234'));
                       }}
                       className={`py-3 rounded-xl transition-all duration-300 text-center flex flex-col items-center justify-center
                       ${isSel ? 'bg-white text-black font-black font-semibold' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
@@ -437,6 +589,96 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROOM CREATOR MODAL */}
+      {showRoomCreator && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/98 backdrop-blur-2xl animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#0D0D0E] border border-white/10 p-8 rounded-[2.5rem] shadow-2xl relative">
+            <div className="text-center space-y-4 mb-8">
+              <div className="w-12 h-12 bg-[#FF2D55]/10 text-[#FF2D55] border border-[#FF2D55]/20 rounded-2xl flex items-center justify-center mx-auto">
+                <Wrench size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black italic uppercase text-white tracking-widest leading-none">CRIAR SALA INTELIGENTE</h3>
+                <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-2">REGISTRE UM AMBIENTE COMPARTILHADO SÍNCRONO</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateRoomSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block ml-2 text-left">NOME DA OFICINA / CONTRATO</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="EX: KAEN CARS AUTOMOTIVE"
+                  value={newRoomName}
+                  onChange={(e) => setNewRoomName(e.target.value.toUpperCase())}
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-4 py-3 text-white text-xs font-black uppercase outline-none focus:border-[#FF2D55]/50 transition-all"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block ml-2 text-left">ID DA SALA (APENAS LETRAS E NÚMEROS)</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="EX: kaen_leste"
+                  value={newRoomId}
+                  onChange={(e) => setNewRoomId(e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, ''))}
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-4 py-3 text-white text-xs font-black outline-none focus:border-[#FF2D55]/50 transition-all font-mono"
+                />
+                <span className="text-[7px] text-zinc-600 block leading-tight px-1 uppercase">USADO PARA CONECTAR APARELHOS CLIENTES</span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block ml-2 text-left">SENHA DE ACESSO DA SALA</label>
+                <input 
+                  type="password" 
+                  required
+                  placeholder="SENHA PRIVADA"
+                  value={newRoomPassword}
+                  onChange={(e) => setNewRoomPassword(e.target.value)}
+                  className="w-full bg-zinc-950 border border-white/5 rounded-xl px-4 py-3 text-white text-xs font-mono outline-none focus:border-[#FF2D55]/50 transition-all tracking-widest text-center"
+                />
+              </div>
+
+              {roomCreatorError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[9px] p-4 rounded-xl text-center font-black uppercase italic leading-tight">
+                  {roomCreatorError}
+                </div>
+              )}
+
+              {roomCreatorSuccess && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-center p-4 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse flex items-center justify-center gap-2">
+                  <CheckCircle size={16} />
+                  <span>{roomCreatorSuccess}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowRoomCreator(false);
+                    setRoomCreatorError('');
+                    setRoomCreatorSuccess('');
+                  }}
+                  className="flex-1 bg-zinc-900 text-zinc-400 py-3.5 rounded-xl font-bold uppercase text-[9px] tracking-widest hover:text-white transition-all border border-white/5"
+                >
+                  CANCELAR
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isCreatingRoom}
+                  className="flex-1 bg-[#FF2D55] text-white py-3.5 rounded-xl font-black uppercase text-[9px] tracking-widest active:scale-95 transition-all shadow-[0_10px_25px_rgba(255,45,85,0.25)] italic flex items-center justify-center gap-2"
+                >
+                  {isCreatingRoom ? <RefreshCw className="animate-spin" size={14} /> : 'REGISTRAR SALA'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

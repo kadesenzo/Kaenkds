@@ -139,8 +139,9 @@ app.get("/api/sync-stream/:username", (req, res) => {
   const { activeUser = "", role = "", device = "", realUsername = "" } = req.query;
   
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   
   const clientIp = (req.headers["x-forwarded-for"] as string || req.ip || "127.0.0.1").split(",")[0].trim();
   const sessionId = `${username}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -180,6 +181,140 @@ app.get("/api/sync-stream/:username", (req, res) => {
     clients[username] = (clients[username] || []).filter(c => c !== res);
     broadcastPresence(username);
   });
+});
+
+// Dynamic Room Registry & Multi-Tenant Setup
+app.post("/api/rooms/create", (req, res) => {
+  const { roomId, password, name } = req.body;
+  if (!roomId || !password || !name) {
+    res.status(400).json({ error: "Parâmetros inválidos para criação da oficina." });
+    return;
+  }
+
+  const db = readDb();
+  if (!db["kaenpro_rooms_registry"]) {
+    db["kaenpro_rooms_registry"] = {};
+  }
+
+  const nid = roomId.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+  if (db["kaenpro_rooms_registry"][nid]) {
+    res.status(400).json({ error: "Código da oficina indisponível ou já cadastrado." });
+    return;
+  }
+
+  // Register room
+  db["kaenpro_rooms_registry"][nid] = {
+    id: nid,
+    password: password,
+    name: name,
+    created: new Date().toISOString()
+  };
+
+  // Pre-populate database with default users for this tenant
+  const defaultUsers = [
+    { 
+      id: 'usr-1', 
+      name: 'Administrador Master', 
+      username: 'rafael', 
+      role: 'Dono', 
+      status: 'ATIVO', 
+      lastLogin: 'Nunca logou', 
+      deviceRegistered: 'Desktop Master (Chrome Windows)',
+      password: 'enzo1234',
+      securityQuestion: 'Qual o nome de sua oficina principal?',
+      securityAnswer: 'KAEN'
+    },
+    { 
+      id: 'usr-2', 
+      name: 'Eduardo Maciel', 
+      username: 'eduardo', 
+      role: 'Funcionário', 
+      status: 'ATIVO', 
+      lastLogin: 'Nunca logou', 
+      deviceRegistered: 'Tablet Oficina (iPad Pro)',
+      password: 'mec1234',
+      securityQuestion: 'Qual sua profissão?',
+      securityAnswer: 'MECANICO'
+    },
+    { 
+      id: 'usr-3', 
+      name: 'Janete Silva', 
+      username: 'janete', 
+      role: 'Recepção', 
+      status: 'ATIVO', 
+      lastLogin: 'Nunca logou', 
+      deviceRegistered: 'Desktop Recepção (Linux Chrome)',
+      password: 'rec1234',
+      securityQuestion: 'Em qual cidade fica a matriz?',
+      securityAnswer: 'SAO PAULO'
+    },
+    { 
+      id: 'usr-4', 
+      name: 'Thiago Rover', 
+      username: 'thiago', 
+      role: 'Funcionário', 
+      status: 'ATIVO', 
+      lastLogin: 'Nunca logou', 
+      deviceRegistered: 'Smartphone (Android)',
+      password: 'mec1234',
+      securityQuestion: 'Qual a marca do scanner principal?',
+      securityAnswer: 'LAUNCH'
+    }
+  ];
+
+  db[`kaenpro_${nid}_admin_users`] = defaultUsers;
+  writeDb(db);
+
+  res.json({ success: true, message: "Oficina cadastrada com sucesso!", roomId: nid });
+});
+
+app.post("/api/rooms/join", (req, res) => {
+  const { roomId, password } = req.body;
+  const db = readDb();
+  
+  const registry = db["kaenpro_rooms_registry"] || {};
+  const nid = String(roomId || "").toLowerCase().trim();
+  
+  // Backward compatibility check for original rafael master tenant code
+  if (nid === "rafael") {
+    res.json({ success: true, name: "Oficina Kaen Pro Master", roomId: "rafael" });
+    return;
+  }
+
+  const room = registry[nid];
+  if (!room) {
+    res.status(404).json({ error: "Oficina não encontrada. Verifique o código digitado." });
+    return;
+  }
+
+  if (room.password !== password) {
+    res.status(401).json({ error: "Senha da oficina incorreta. Acesso não autorizado." });
+    return;
+  }
+
+  res.json({ success: true, name: room.name, roomId: nid });
+});
+
+// Admin command: Disconnect connected devices
+app.post("/api/presence/disconnect/:username/:sessionId", (req, res) => {
+  const { username, sessionId } = req.params;
+  
+  if (activeSessions[username]) {
+    const sessionToKill = activeSessions[username].find(s => s.id === sessionId);
+    if (sessionToKill) {
+      try {
+        sessionToKill.res.write(`data: ${JSON.stringify({ type: "force_disconnect", message: "Conexão encerrada pelo Administrador." })}\n\n`);
+        sessionToKill.res.end();
+      } catch (err) {
+        // Ignored
+      }
+      activeSessions[username] = activeSessions[username].filter(s => s.id !== sessionId);
+      broadcastPresence(username);
+      res.json({ success: true });
+      return;
+    }
+  }
+  res.status(404).json({ error: "Sessão não encontrada." });
 });
 
 async function startServer() {
