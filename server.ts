@@ -14,36 +14,90 @@ const DB_PATH = process.env.VERCEL
 
 app.use(express.json({ limit: "50mb" }));
 
+// In-memory cache for ultra-fast reading in Serverless environment
+let dbCache: any = null;
+const CLOUD_DB_ID = "999d1f6a_d34c_4a15_ae5c_e0ceb03074d1";
+const CLOUD_DB_URL = `https://kvdb.io/${CLOUD_DB_ID}/kaen_database`;
+
 // Load database state helper
-function readDb() {
+async function loadCloudDb() {
   try {
-    if (process.env.VERCEL) {
-      const workspaceTemplate = path.join(process.cwd(), "kaen_db.json");
-      if (!fs.existsSync(DB_PATH) && fs.existsSync(workspaceTemplate)) {
+    const res = await fetch(CLOUD_DB_URL);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().startsWith("{")) {
+        dbCache = JSON.parse(text);
+        console.log("Database successfully synchronized from Cloud Storage.");
         try {
-          fs.copyFileSync(workspaceTemplate, DB_PATH);
-          console.log("Seeded database to /tmp directory from workspace template.");
-        } catch (copyErr) {
-          console.error("Error seeding template database to /tmp:", copyErr);
+          fs.writeFileSync(DB_PATH, JSON.stringify(dbCache, null, 2), "utf-8");
+        } catch (e) {
+          // ignore write errors in read-only setups
         }
+        return dbCache;
       }
     }
+  } catch (err) {
+    console.error("Failed to load database from cloud. Falling back to local:", err);
+  }
+  
+  // Local fallback
+  try {
     if (fs.existsSync(DB_PATH)) {
-      return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      dbCache = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    } else {
+      const workspaceTemplate = path.join(process.cwd(), "kaen_db.json");
+      if (fs.existsSync(workspaceTemplate)) {
+        dbCache = JSON.parse(fs.readFileSync(workspaceTemplate, "utf-8"));
+      } else {
+        dbCache = {};
+      }
     }
   } catch (e) {
-    console.error("Error reading database", e);
+    dbCache = {};
   }
-  return {};
+  return dbCache;
+}
+
+// Start cloud sync background operation
+loadCloudDb();
+
+function readDb() {
+  if (dbCache === null) {
+    try {
+      if (fs.existsSync(DB_PATH)) {
+        dbCache = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+      } else {
+        const workspaceTemplate = path.join(process.cwd(), "kaen_db.json");
+        if (fs.existsSync(workspaceTemplate)) {
+          dbCache = JSON.parse(fs.readFileSync(workspaceTemplate, "utf-8"));
+        } else {
+          dbCache = {};
+        }
+      }
+    } catch (e) {
+      dbCache = {};
+    }
+  }
+  return dbCache;
 }
 
 // Write database state helper
 function writeDb(data: any) {
+  dbCache = data;
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
   } catch (e) {
-    console.error("Error writing database", e);
+    console.error("Error writing local database", e);
   }
+
+  // Persist to Cloud in the background dynamically (Does not block Express process)
+  fetch(CLOUD_DB_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(data)
+  }).catch(err => {
+    console.error("Failed to persist database to cloud storage:", err);
+  });
 }
 
 // Presence Interfaces
@@ -103,8 +157,11 @@ function broadcastPresence(username: string) {
 }
 
 // REST endpoints for synchronization
-app.get("/api/sync/:username", (req, res) => {
+app.get("/api/sync/:username", async (req, res) => {
   const { username } = req.params;
+  if (dbCache === null) {
+    await loadCloudDb();
+  }
   const db = readDb();
   const userPrefix = `kaenpro_${username}_`;
   const userData: Record<string, any> = {};
@@ -119,9 +176,12 @@ app.get("/api/sync/:username", (req, res) => {
   res.json(userData);
 });
 
-app.post("/api/sync/:username/:key", (req, res) => {
+app.post("/api/sync/:username/:key", async (req, res) => {
   const { username, key } = req.params;
   const payload = req.body;
+  if (dbCache === null) {
+    await loadCloudDb();
+  }
   const db = readDb();
   
   const userKey = `kaenpro_${username}_${key}`;
@@ -200,13 +260,16 @@ app.get("/api/sync-stream/:username", (req, res) => {
 });
 
 // Dynamic Room Registry & Multi-Tenant Setup
-app.post("/api/rooms/create", (req, res) => {
+app.post("/api/rooms/create", async (req, res) => {
   const { roomId, password, name } = req.body;
   if (!roomId || !password || !name) {
     res.status(400).json({ error: "Parâmetros inválidos para criação da oficina." });
     return;
   }
 
+  if (dbCache === null) {
+    await loadCloudDb();
+  }
   const db = readDb();
   if (!db["kaenpro_rooms_registry"]) {
     db["kaenpro_rooms_registry"] = {};
@@ -284,8 +347,11 @@ app.post("/api/rooms/create", (req, res) => {
   res.json({ success: true, message: "Oficina cadastrada com sucesso!", roomId: nid });
 });
 
-app.post("/api/rooms/join", (req, res) => {
+app.post("/api/rooms/join", async (req, res) => {
   const { roomId, password } = req.body;
+  if (dbCache === null) {
+    await loadCloudDb();
+  }
   const db = readDb();
   
   const registry = db["kaenpro_rooms_registry"] || {};

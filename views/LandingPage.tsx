@@ -394,19 +394,25 @@ const LandingPage: React.FC = () => {
                 </span>
                 <p className="text-[10px] text-zinc-400 font-medium">Toque nas fotos abaixo registradas pelo especialista para inspecionar os componentes analisados durante a reparação:</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: "Velas de Ignição Gastas", url: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400" },
-                    { label: "Análise Fluido de Freio", url: "https://images.unsplash.com/photo-1542282088-fe8426682b8f?auto=format&fit=crop&q=80&w=400" },
-                    { label: "Desgaste Pastilha Dianteira", url: "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?auto=format&fit=crop&q=80&w=400" },
-                    { label: "Vazamento Cárter Motor", url: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=400" }
-                  ].map((ph, idx) => (
+                  {(trackingOrder.checklist?.photos && trackingOrder.checklist.photos.length > 0
+                    ? trackingOrder.checklist.photos
+                    : (trackingOrder.photos && trackingOrder.photos.length > 0
+                      ? trackingOrder.photos
+                      : [
+                          { label: "Velas de Ignição Gastas", url: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=400" },
+                          { label: "Análise Fluido de Freio", url: "https://images.unsplash.com/photo-1542282088-fe8426682b8f?auto=format&fit=crop&q=80&w=400" },
+                          { label: "Desgaste Pastilha Dianteira", url: "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?auto=format&fit=crop&q=80&w=400" },
+                          { label: "Vazamento Cárter Motor", url: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=400" }
+                        ]
+                    )
+                  ).map((ph, idx) => (
                     <button 
                       key={idx}
                       type="button"
                       onClick={() => setActivePhotoUrl(ph.url)}
-                      className="group relative h-28 rounded-2xl overflow-hidden border border-white/5 hover:border-[#FF2D55] transition-all bg-zinc-950 text-center"
+                      className="group relative h-28 rounded-2xl overflow-hidden border border-white/5 hover:border-[#FF2D55] transition-all bg-zinc-950 text-center animate-in fade-in duration-300"
                     >
-                      <img src={ph.url} alt={ph.label} className="w-full h-full object-cover opacity-60 group-hover:opacity-95 transition-all group-hover:scale-105" />
+                      <img src={ph.url} alt={ph.label} className="w-full h-full object-cover opacity-60 group-hover:opacity-95 transition-all group-hover:scale-105" referrerPolicy="no-referrer" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-2 text-left">
                         <span className="text-[7.5px] font-black text-white uppercase tracking-tight leading-tight">{ph.label}</span>
                       </div>

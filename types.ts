@@ -123,6 +123,8 @@ export interface ServiceOrder {
     | { date: string; amount: number; method: string }
     | { date: string; user: string; level: 'mild' | 'formal' | 'final' }
   )[];
+  checklist?: VehicleChecklist;
+  photos?: { label: string; url: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -132,6 +134,7 @@ export interface VehicleChecklist {
   damages: string[];
   items: Record<string, boolean>;
   observations: string;
+  photos?: { label: string; url: string }[];
 }
 
 export interface Appointment {

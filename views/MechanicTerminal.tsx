@@ -19,7 +19,9 @@ import {
   DollarSign,
   Smartphone,
   ChevronRight,
-  User
+  User,
+  Camera,
+  UserPlus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, OSItem, ServiceOrder, OSStatus, PaymentStatus, VehicleChecklist, UserSession } from '../types';
@@ -59,10 +61,115 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
       'Interior': true,
       'Vazamentos': false
     } as Record<string, boolean>,
-    observations: ''
+    observations: '',
+    photos: [] as { label: string; url: string }[]
   });
 
   const [showChecklistResult, setShowChecklistResult] = useState<VehicleChecklist | null>(null);
+
+  // States for Quick Registration of Client & Vehicle
+  const [showRegisterClientModal, setShowRegisterClientModal] = useState(false);
+  const [showRegisterVehicleModal, setShowRegisterVehicleModal] = useState(false);
+
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientDoc, setNewClientDoc] = useState('');
+  const [newClientObs, setNewClientObs] = useState('');
+
+  const [vPlate, setVPlate] = useState('');
+  const [vModel, setVModel] = useState('');
+  const [vBrand, setVBrand] = useState('');
+  const [vYear, setVYear] = useState('');
+  const [vKm, setVKm] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
+
+  const handleRegisterClientAndVehicle = async () => {
+    if (!newClientName || !newClientPhone || !vPlate || !vModel || !session || !syncData) {
+      alert("ERRO: Nome, WhatsApp, Placa e Modelo do Veículo são obrigatórios.");
+      return;
+    }
+
+    const clientId = Math.random().toString(36).substr(2, 9);
+    const clientObj: Client = {
+      id: clientId,
+      name: newClientName,
+      phone: newClientPhone,
+      document: newClientDoc || '',
+      observations: newClientObs || '',
+      createdAt: new Date().toISOString()
+    };
+
+    const vehicleId = Math.random().toString(36).substr(2, 9);
+    const vehicleObj: Vehicle = {
+      id: vehicleId,
+      clientId: clientId,
+      plate: vPlate.toUpperCase().trim(),
+      model: vModel.trim(),
+      brand: vBrand.trim() || '',
+      year: vYear.trim() || '',
+      km: parseFloat(vKm) || 0
+    };
+
+    const updatedClients = [...clients, clientObj];
+    setClients(updatedClients);
+    await syncData('clients', updatedClients);
+
+    const updatedVehicles = [...vehicles, vehicleObj];
+    setVehicles(updatedVehicles);
+    await syncData('vehicles', updatedVehicles);
+
+    // Reset fields
+    setNewClientName('');
+    setNewClientPhone('');
+    setNewClientDoc('');
+    setNewClientObs('');
+    setVPlate('');
+    setVModel('');
+    setVBrand('');
+    setVYear('');
+    setVKm('');
+
+    setShowRegisterClientModal(false);
+
+    // Auto-select the newly registered vehicle
+    handleSelectVehicle(vehicleObj);
+    alert(`Cliente e Veículo cadastrados com sucesso! Iniciando atendimento para ${vehicleObj.plate}.`);
+  };
+
+  const handleRegisterVehicleOnly = async () => {
+    if (!selectedClientId || !vPlate || !vModel || !session || !syncData) {
+      alert("ERRO: Selecione um Cliente, e preencha Placa e Modelo do Veículo.");
+      return;
+    }
+
+    const vehicleObj: Vehicle = {
+      id: Math.random().toString(36).substr(2, 9),
+      clientId: selectedClientId,
+      plate: vPlate.toUpperCase().trim(),
+      model: vModel.trim(),
+      brand: vBrand.trim() || '',
+      year: vYear.trim() || '',
+      km: parseFloat(vKm) || 0
+    };
+
+    const updatedVehicles = [...vehicles, vehicleObj];
+    setVehicles(updatedVehicles);
+    await syncData('vehicles', updatedVehicles);
+
+    // Reset fields
+    setSelectedClientId('');
+    setVPlate('');
+    setVModel('');
+    setVBrand('');
+    setVYear('');
+    setVKm('');
+
+    setShowRegisterVehicleModal(false);
+
+    // Auto-select the newly registered vehicle
+    handleSelectVehicle(vehicleObj);
+    alert(`Veículo cadastrado e vinculado ao cliente! Iniciando atendimento para ${vehicleObj.plate}.`);
+  };
 
   useEffect(() => {
     if (session) {
@@ -86,6 +193,52 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
     setSelectedVehicle(v);
     setCurrentKm(v.km.toString());
     setSearch('');
+
+    if (session) {
+      const savedOrders: ServiceOrder[] = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
+      const activeOrderForVehicle = savedOrders.find(o => o.vehicleId === v.id && o.status !== OSStatus.FINALIZADO && o.status !== OSStatus.CANCELADO);
+      if (activeOrderForVehicle && activeOrderForVehicle.checklist) {
+        setChecklist({
+          fuelLevel: activeOrderForVehicle.checklist.fuelLevel || '1/2',
+          damages: activeOrderForVehicle.checklist.damages || [],
+          items: activeOrderForVehicle.checklist.items || {
+            'Faróis': true,
+            'Lanternas': true,
+            'Pneus': true,
+            'Estepe': true,
+            'Vidros': true,
+            'Retrovisores': true,
+            'Limpador': true,
+            'Painel': true,
+            'Interior': true,
+            'Vazamentos': false
+          },
+          observations: activeOrderForVehicle.checklist.observations || '',
+          photos: activeOrderForVehicle.checklist.photos || []
+        });
+        return;
+      }
+    }
+
+    // Default reset if no active order checklist found
+    setChecklist({
+      fuelLevel: '1/2',
+      damages: [],
+      items: {
+        'Faróis': true,
+        'Lanternas': true,
+        'Pneus': true,
+        'Estepe': true,
+        'Vidros': true,
+        'Retrovisores': true,
+        'Limpador': true,
+        'Painel': true,
+        'Interior': true,
+        'Vazamentos': false
+      },
+      observations: '',
+      photos: []
+    });
   };
 
   const toggleDamage = (area: string) => {
@@ -95,6 +248,73 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
         ? prev.damages.filter(a => a !== area) 
         : [...prev.damages, area]
     }));
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setChecklist(prev => ({
+            ...prev,
+            photos: [
+              ...(prev.photos || []),
+              { label: file.name.split('.')[0] || 'Foto do Veículo', url: reader.result as string }
+            ]
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const updatePhotoLabel = (index: number, label: string) => {
+    setChecklist(prev => {
+      const updatedPhotos = [...(prev.photos || [])];
+      updatedPhotos[index] = { ...updatedPhotos[index], label };
+      return { ...prev, photos: updatedPhotos };
+    });
+  };
+
+  const removePhoto = (index: number) => {
+    setChecklist(prev => ({
+      ...prev,
+      photos: (prev.photos || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleFinalizeChecklist = async () => {
+    if (!selectedVehicle || !session || !syncData) {
+      alert("ERRO: Escolha um veículo primeiro.");
+      return;
+    }
+    
+    const savedOrders: ServiceOrder[] = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
+    const activeOrderIndex = savedOrders.findIndex(o => o.vehicleId === selectedVehicle.id && o.status !== OSStatus.FINALIZADO && o.status !== OSStatus.CANCELADO);
+    
+    if (activeOrderIndex !== -1) {
+      // Attach/update checklist on the active budget / progress order!
+      savedOrders[activeOrderIndex].checklist = {
+        fuelLevel: checklist.fuelLevel,
+        damages: checklist.damages,
+        items: checklist.items,
+        observations: checklist.observations,
+        photos: checklist.photos
+      };
+      
+      // Seed root level OS photos as well so client landing page gallery receives them nicely
+      if (checklist.photos && checklist.photos.length > 0) {
+        savedOrders[activeOrderIndex].photos = checklist.photos;
+      }
+      
+      await syncData('orders', savedOrders);
+      alert("Relatório Fotográfico e checklist salvos com sucesso na nuvem do cliente!");
+    } else {
+      alert("Checklist salvo localmente! Ele será anexado e enviado aos serviços quando você clicar em 'Confirmar Entrega' na aba de Serviço.");
+    }
   };
 
   const handleFinalizeService = async () => {
@@ -121,7 +341,15 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
       status: OSStatus.FINALIZADO,
       paymentStatus: PaymentStatus.PENDENTE,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      checklist: {
+        fuelLevel: checklist.fuelLevel,
+        damages: checklist.damages,
+        items: checklist.items,
+        observations: checklist.observations,
+        photos: checklist.photos
+      },
+      photos: checklist.photos && checklist.photos.length > 0 ? checklist.photos : undefined
     };
     
     const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
@@ -132,7 +360,7 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
     const updatedVehicles = vehicles.map(v => v.id === selectedVehicle.id ? {...v, km: parseFloat(currentKm) || v.km} : v);
     await syncData('vehicles', updatedVehicles);
 
-    alert("SERVIÇO REGISTRADO NA NUVEM! O administrador poderá gerar a nota agora.");
+    alert("SERVIÇO REGISTRADO NA NUVEM! O checklist, fotos e informações operacionais foram sincronizados.");
     navigate('/orders');
   };
 
@@ -217,6 +445,35 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="border-t border-[#1F1F1F] pt-8 space-y-6">
+            <div className="text-center">
+              <p className="text-[9px] font-black uppercase text-zinc-500 tracking-[0.2em] mb-1">Não encontrou o veículo na lista?</p>
+              <p className="text-[8px] font-bold text-zinc-700 uppercase tracking-widest">Seja o primeiro a registrá-lo no banco de dados sincronizado.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button 
+                onClick={() => {
+                  setVPlate(search.toUpperCase());
+                  setShowRegisterClientModal(true);
+                }}
+                className="bg-zinc-950 hover:bg-zinc-900 border border-[#1F1F1F] hover:border-[#E11D48]/50 text-white font-black uppercase text-[10px] tracking-widest py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-95"
+              >
+                <UserPlus size={16} className="text-[#E11D48] group-hover:scale-125 transition-all" />
+                <span>Novo Cliente + Carro</span>
+              </button>
+              <button 
+                onClick={() => {
+                  setVPlate(search.toUpperCase());
+                  setShowRegisterVehicleModal(true);
+                }}
+                className="bg-zinc-950 hover:bg-zinc-900 border border-[#1F1F1F] hover:border-[#E11D48]/50 text-white font-black uppercase text-[10px] tracking-widest py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-95"
+              >
+                <Car size={16} className="text-[#E11D48] group-hover:scale-125 transition-all" />
+                <span>Novo Carro Avulso</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col items-center gap-6 opacity-30 pt-10">
@@ -345,14 +602,317 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
                  </div>
               </div>
 
+              {/* Dynamic Photo Uploader & Gallery */}
+              <div className="bg-[#0F0F0F] border border-[#1F1F1F] p-8 rounded-[2.5rem] shadow-xl space-y-6">
+                 <div className="flex items-center justify-between">
+                   <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2 italic">
+                     <Camera size={14} className="text-[#E11D48]" /> Relatório Fotográfico do Box
+                   </h3>
+                   <span className="text-[9px] font-black text-zinc-700 uppercase tracking-widest">
+                     {checklist.photos?.length || 0} Fotos
+                   </span>
+                 </div>
+
+                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-[#1F1F1F] hover:border-[#E11D48]/50 p-8 rounded-[2rem] cursor-pointer hover:bg-zinc-950/40 transition-all group">
+                   <div className="w-14 h-14 bg-zinc-950 rounded-2xl flex items-center justify-center text-zinc-600 group-hover:text-[#E11D48] border border-zinc-900 shadow-inner group-hover:scale-110 transition-transform">
+                     <Camera size={24} />
+                   </div>
+                   <div className="mt-4 text-center">
+                     <span className="text-xs font-black text-white uppercase tracking-wider block">Tirar ou Anexar Fotos</span>
+                     <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest mt-1 block">Tire fotos do veículo em tempo real</span>
+                   </div>
+                   <input 
+                     type="file" 
+                     multiple 
+                     accept="image/*" 
+                     onChange={handlePhotoUpload} 
+                     className="hidden" 
+                   />
+                 </label>
+
+                 {checklist.photos && checklist.photos.length > 0 && (
+                   <div className="grid grid-cols-2 gap-4">
+                     {checklist.photos.map((ph, idx) => (
+                       <div key={idx} className="relative group rounded-2xl overflow-hidden border border-[#1F1F1F]">
+                         <img src={ph.url} alt={ph.label} className="w-full h-32 object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
+                         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent flex flex-col justify-end p-2.5">
+                           <input 
+                             type="text" 
+                             value={ph.label} 
+                             onChange={(e) => updatePhotoLabel(idx, e.target.value)}
+                             placeholder="Ex: Risco para-choque..." 
+                             className="bg-black/60 border border-white/5 rounded px-2 py-1 text-[9px] text-white font-bold uppercase focus:border-[#E11D48] outline-none"
+                           />
+                         </div>
+                         <button 
+                           type="button" 
+                           onClick={() => removePhoto(idx)} 
+                           className="absolute top-2 right-2 w-8 h-8 bg-black/80 hover:bg-[#E11D48] text-white rounded-xl flex items-center justify-center cursor-pointer transition-colors border border-white/5 active:scale-95 z-20"
+                         >
+                           <Trash2 size={12} />
+                         </button>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+              </div>
+
               <button 
-                onClick={() => alert("Checklist salvo! Utilize 'Gerar Nota' para imprimir o relatório completo.")}
+                onClick={handleFinalizeChecklist}
                 className="w-full bg-[#E11D48] py-8 rounded-[2rem] font-black uppercase text-sm tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl shadow-red-900/20 active:scale-95 transition-all active-glow"
               >
                 <CheckCircle2 size={28} /> Finalizar Checklist
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Cadastro de Cliente + Veículo */}
+      {showRegisterClientModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="bg-[#0F0F0F] border border-[#1F1F1F] w-full max-w-xl p-8 rounded-[2.5rem] shadow-2xl relative my-8 animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setShowRegisterClientModal(false)} 
+              className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-all cursor-pointer w-10 h-10 flex items-center justify-center bg-zinc-950 border border-[#1F1F1F] rounded-xl active:scale-90"
+            >
+              <X size={20} />
+            </button>
+            
+            <h2 className="text-xl font-black mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+              <UserPlus className="text-[#E11D48]" size={24} />
+              Novo Cliente + Veículo
+            </h2>
+            
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin">
+              {/* Informações do Cliente */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#E11D48] flex items-center gap-2">
+                  <User size={12} /> Informações do Proprietário
+                </h3>
+                
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Nome Completo *</label>
+                  <input 
+                    type="text" 
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold placeholder-zinc-850"
+                    placeholder="NOME COMPLETO DO CLIENTE"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">WhatsApp / Telefone *</label>
+                    <input 
+                      type="text" 
+                      value={newClientPhone}
+                      onChange={(e) => setNewClientPhone(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Ex: (11) 99999-9999"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">CPF / CNPJ (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={newClientDoc}
+                      onChange={(e) => setNewClientDoc(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Ex: 123.456.789-00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Observações (Opcional)</label>
+                  <input 
+                    type="text" 
+                    value={newClientObs}
+                    onChange={(e) => setNewClientObs(e.target.value)}
+                    className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                    placeholder="Ex: Prefere atendimento via whatsapp..."
+                  />
+                </div>
+              </div>
+
+              {/* Informações do Veículo */}
+              <div className="space-y-4 pt-6 border-t border-[#1F1F1F]">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#E11D48] flex items-center gap-2">
+                  <Car size={12} /> Dados do Veículo
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Placa *</label>
+                    <input 
+                      type="text" 
+                      value={vPlate}
+                      onChange={(e) => setVPlate(e.target.value.toUpperCase())}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-black tracking-widest uppercase"
+                      placeholder="ABC-1234"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Modelo *</label>
+                    <input 
+                      type="text" 
+                      value={vModel}
+                      onChange={(e) => setVModel(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Ex: Corolla XEI"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Marca</label>
+                    <input 
+                      type="text" 
+                      value={vBrand}
+                      onChange={(e) => setVBrand(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Toyota"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Ano</label>
+                    <input 
+                      type="text" 
+                      value={vYear}
+                      onChange={(e) => setVYear(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="2018"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">KM Atual</label>
+                    <input 
+                      type="number" 
+                      value={vKm}
+                      onChange={(e) => setVKm(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="95000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleRegisterClientAndVehicle}
+                className="w-full bg-[#E11D48] py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-[#D11D40] transition-all cursor-pointer shadow-2xl shadow-red-900/20 active:scale-95"
+              >
+                Salvar e Iniciar Atendimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cadastro de Veículo Avulso */}
+      {showRegisterVehicleModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="bg-[#0F0F0F] border border-[#1F1F1F] w-full max-w-xl p-8 rounded-[2.5rem] shadow-2xl relative my-8 animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setShowRegisterVehicleModal(false)} 
+              className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-all cursor-pointer w-10 h-10 flex items-center justify-center bg-zinc-950 border border-[#1F1F1F] rounded-xl active:scale-90"
+            >
+              <X size={20} />
+            </button>
+            
+            <h2 className="text-xl font-black mb-6 flex items-center gap-3 italic uppercase tracking-tighter">
+              <Car className="text-[#E11D48]" size={24} />
+              Registrar Outro Veículo
+            </h2>
+            
+            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Proprietário (Cliente Cadastrado) *</label>
+                  <select 
+                    value={selectedClientId}
+                    onChange={(e) => setSelectedClientId(e.target.value)}
+                    className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                  >
+                    <option value="" className="text-zinc-650">SELECIONE O PROPRIETÁRIO...</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id} className="bg-[#0F0F0F] text-white">
+                        {c.name.toUpperCase()} {c.phone ? `(${c.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {clients.length === 0 && (
+                    <p className="text-[8px] font-bold uppercase text-amber-500 mt-1">Nenhum cliente cadastrado ainda. Use a opção "Novo Cliente + Carro".</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Placa *</label>
+                    <input 
+                      type="text" 
+                      value={vPlate}
+                      onChange={(e) => setVPlate(e.target.value.toUpperCase())}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-black tracking-widest uppercase"
+                      placeholder="ABC-1234"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Modelo *</label>
+                    <input 
+                      type="text" 
+                      value={vModel}
+                      onChange={(e) => setVModel(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Ex: Civic Touring"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Marca</label>
+                    <input 
+                      type="text" 
+                      value={vBrand}
+                      onChange={(e) => setVBrand(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="Honda"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Ano</label>
+                    <input 
+                      type="text" 
+                      value={vYear}
+                      onChange={(e) => setVYear(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="2020"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">KM Atual</label>
+                    <input 
+                      type="number" 
+                      value={vKm}
+                      onChange={(e) => setVKm(e.target.value)}
+                      className="w-full bg-[#050505] border border-[#1F1F1F] rounded-xl px-4 py-3.5 text-sm text-white focus:border-[#E11D48] outline-none font-bold"
+                      placeholder="45000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleRegisterVehicleOnly}
+                className="w-full bg-[#E11D48] py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-[#D11D40] transition-all cursor-pointer shadow-2xl shadow-red-900/20 active:scale-95"
+              >
+                Salvar e Iniciar Atendimento
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

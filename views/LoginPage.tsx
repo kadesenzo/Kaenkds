@@ -167,23 +167,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        setRoomCreatorError(data.error || "Houve um erro desconhecido ao criar a oficina.");
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (!res.ok) {
+          setRoomCreatorError(data.error || "Houve um erro desconhecido ao criar a oficina.");
+        } else {
+          setRoomCreatorSuccess(`OFICINA REGISTRADA! ID: ${newRoomId.toUpperCase()}`);
+          setTenant(newRoomId.toLowerCase());
+          setRoomPassword(newRoomPassword);
+          setTimeout(() => {
+            setShowRoomCreator(false);
+            setNewRoomId('');
+            setNewRoomPassword('');
+            setNewRoomName('');
+            setRoomCreatorSuccess('');
+          }, 2000);
+        }
       } else {
-        setRoomCreatorSuccess(`OFICINA REGISTRADA! ID: ${newRoomId.toUpperCase()}`);
-        setTenant(newRoomId.toLowerCase());
-        setRoomPassword(newRoomPassword);
-        setTimeout(() => {
-          setShowRoomCreator(false);
-          setNewRoomId('');
-          setNewRoomPassword('');
-          setNewRoomName('');
-          setRoomCreatorSuccess('');
-        }, 2000);
+        const text = await res.text();
+        setRoomCreatorError(`Erro no Servidor [${res.status}]: ${text.substring(0, 150) || "Sem resposta do servidor"}`);
       }
-    } catch (err) {
-      setRoomCreatorError("Erro de comunicação com a api central.");
+    } catch (err: any) {
+      setRoomCreatorError(`Erro de Conexão: ${err?.message || "Sem detalhes"}`);
     } finally {
       setIsCreatingRoom(false);
     }
@@ -208,14 +214,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           })
         });
 
-        if (!roomJoinRes.ok) {
-          const roomErr = await roomJoinRes.json();
-          setError(`ACESSO SALA BLOQUEADO: ${roomErr.error || 'Código da oficina ou senha inválidos.'}`);
+        const joinContentType = roomJoinRes.headers.get("content-type") || "";
+        if (joinContentType.includes("application/json")) {
+          if (!roomJoinRes.ok) {
+            const roomErr = await roomJoinRes.json();
+            setError(`ACESSO SALA BLOQUEADO: ${roomErr.error || 'Código da oficina ou senha inválidos.'}`);
+            setIsLoggingIn(false);
+            return;
+          }
+        } else {
+          const joinText = await roomJoinRes.text();
+          setError(`ERRO DO SERVIDOR [${roomJoinRes.status}]: ${joinText.substring(0, 150) || "Sem resposta"}`);
           setIsLoggingIn(false);
           return;
         }
-      } catch (err) {
-        setError("ERRO DE REDE: Falha em autenticar conexão com a sala.");
+      } catch (err: any) {
+        setError(`ERRO DE REDE: ${err?.message || "Sem detalhes da falha"}`);
         setIsLoggingIn(false);
         return;
       }
