@@ -17,6 +17,7 @@ import Calendar from './views/Calendar';
 import MechanicTerminal from './views/MechanicTerminal';
 import ReceptionTerminal from './views/ReceptionTerminal';
 import AdminPanel from './views/AdminPanel';
+import AiAssistant from './views/AiAssistant';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
@@ -140,11 +141,10 @@ const App: React.FC = () => {
     
     connectStream();
 
-    // 3. Hybrid Background Poll (essential for Serverless/Vercel environments and mobile connections)
-    const pollInterval = setInterval(async () => {
-      // Poll database synchronization keys
+    // 3. Hybrid Background Poll & Instant Sync on Focus/Visibility (essential for Serverless/Vercel environments and mobile connections)
+    const runSyncFetch = async () => {
       try {
-        const res = await fetch(`/api/sync/${tenant}`);
+        const res = await fetch(`/api/sync/${tenant}?_t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           let anyChanged = false;
@@ -175,11 +175,26 @@ const App: React.FC = () => {
       } catch (err) {
         console.warn("Background presence update poll encountered network latency.", err);
       }
-    }, 6000);
+    };
+
+    // Run interval setup (frequent 2.5s polling while active)
+    const pollInterval = setInterval(runSyncFetch, 2500);
+
+    // Instant sync triggers on Focus and VisibilityChange (perfect for fast phone switching)
+    const handleSyncTrigger = () => {
+      if (document.visibilityState === 'visible') {
+        runSyncFetch();
+      }
+    };
+
+    window.addEventListener('focus', handleSyncTrigger);
+    document.addEventListener('visibilitychange', handleSyncTrigger);
 
     return () => {
       eventSource?.close();
       clearInterval(pollInterval);
+      window.removeEventListener('focus', handleSyncTrigger);
+      document.removeEventListener('visibilitychange', handleSyncTrigger);
     };
   }, [session]);
 
@@ -317,6 +332,7 @@ const App: React.FC = () => {
         <Route path="/vehicles" element={<PrivateLayout><Vehicles /></PrivateLayout>} />
         <Route path="/vehicles/:id" element={<PrivateLayout><VehicleDetails /></PrivateLayout>} />
         <Route path="/employees" element={<PrivateLayout><Employees /></PrivateLayout>} />
+        <Route path="/ai-marketing" element={<PrivateLayout><AiAssistant /></PrivateLayout>} />
         <Route path="/terminal" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,9 +1,27 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { GoogleGenAI, Type } from "@google/genai";
 
 const app = express();
 const PORT = 3000;
+
+// Initialize GoogleGenAI client with correct required parameters
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
+
+function getGeminiClient() {
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn("GEMINI_API_KEY is missing. AI routes will fall back or fail unless configured in Settings.");
+  }
+  return ai;
+}
 
 // Vercel environment has a read-only filesystem except for /tmp.
 // We make the DB_PATH point to /tmp/kaen_db.json when running on Vercel
@@ -22,7 +40,13 @@ const CLOUD_DB_URL = `https://kvdb.io/${CLOUD_DB_ID}/kaen_database`;
 // Load database state helper
 async function loadCloudDb() {
   try {
-    const res = await fetch(CLOUD_DB_URL);
+    const res = await fetch(`${CLOUD_DB_URL}?_t=${Date.now()}`, {
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    });
     if (res.ok) {
       const text = await res.text();
       if (text && text.trim().startsWith("{")) {
@@ -159,9 +183,8 @@ function broadcastPresence(username: string) {
 // REST endpoints for synchronization
 app.get("/api/sync/:username", async (req, res) => {
   const { username } = req.params;
-  if (dbCache === null) {
-    await loadCloudDb();
-  }
+  // Always force load cloud DB to ensure synchronization between multiple devices/containers
+  await loadCloudDb();
   const db = readDb();
   const userPrefix = `kaenpro_${username}_`;
   const userData: Record<string, any> = {};
@@ -397,6 +420,195 @@ app.post("/api/presence/disconnect/:username/:sessionId", (req, res) => {
     }
   }
   res.status(404).json({ error: "Sessão não encontrada." });
+});
+
+// GEMINI-POWERED BUSINESS CONTENT & CRM MARKETING GENERATOR ENDPOINTS
+
+app.post("/api/gemini/viral-posts", async (req, res) => {
+  const { niche, platform, goal, targetAudience, postTone, postQty } = req.body;
+  try {
+    const client = getGeminiClient();
+    const prompt = `Gere exatamente ${postQty || 3} posts de redes sociais altamente virais voltados para o nicho de oficinas mecânicas e automotivas, especificamente: "${niche || 'Oficina Mecânica'}".
+    Plataforma de destino: ${platform || 'Instagram'}.
+    Objetivo principal das postagens: ${goal || 'Atrair novos clientes para Revisão'}).
+    Público-alvo desejado: ${targetAudience || 'Motoristas e proprietários de carros da região'}.
+    Tom geral da comunicação: ${postTone || 'Profissional, autoritativo e direto'}.
+    Responda em português no formato JSON especificado. Para cada post individual, forneça um título provocativo ou gancho inicial, uma legenda completa rica em gatilhos e apelos estruturados de segurança/manutenção, hashtags oportunas do setor automotivo, e um prompt detalhado em português para geração de imagem artística e criativa via inteligência artificial (DALL-E/Midjourney) que represente perfeitamente a mensagem.`;
+
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            posts: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  caption: { type: Type.STRING },
+                  hashtags: { type: Type.STRING },
+                  imagePrompt: { type: Type.STRING }
+                },
+                required: ["title", "caption", "hashtags", "imagePrompt"]
+              }
+            }
+          },
+          required: ["posts"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text || "{}");
+    result.generationContext = { niche, platform };
+    res.json(result);
+  } catch (error: any) {
+    console.error("Gemini Viral Posts Generation Failed:", error);
+    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para Posts: " + error.message });
+  }
+});
+
+app.post("/api/gemini/reels-script", async (req, res) => {
+  const { theme, tone } = req.body;
+  try {
+    const client = getGeminiClient();
+    const prompt = `Escreva um roteiro magnético e cinematográfico de Reels/Shorts/TikTok de altíssima conversão automotiva.
+    Tema desafiador do vídeo: "${theme || '3 ruídos estranhos no freio da sua SUV que indicam perigo imediato'}".
+    Tom de voz ideal da narração: ${tone || 'Alerta dinâmico e enérgico'}.
+    Forneça um gancho frontal fortíssimo de reter atenção nos primeiros 3 segundos para evitar que o usuário dê scroll. Esboce de 3 a 5 sequências ou cenas rápidas, cada uma descrevendo exatamente qual cena visual cortar na gravação física da oficina (Corte de Câmera) e a respectiva fala acelerada de locução profissional, e encerre com uma chamada de ação (CTA) para encaminhar o fluxo de visualização aos botões de agendamento.`;
+
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            hook: { type: Type.STRING },
+            scenes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  visual: { type: Type.STRING },
+                  narration: { type: Type.STRING },
+                  duration: { type: Type.STRING },
+                  audioBg: { type: Type.STRING }
+                },
+                required: ["visual", "narration", "duration", "audioBg"]
+              }
+            },
+            cta: { type: Type.STRING }
+          },
+          required: ["hook", "scenes", "cta"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text || "{}");
+    result.rawText = response.text;
+    res.json(result);
+  } catch (error: any) {
+    console.error("Gemini Reels Script Generation Failed:", error);
+    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para Roteiros: " + error.message });
+  }
+});
+
+app.post("/api/gemini/campaign-ads", async (req, res) => {
+  const { product, audience, budget } = req.body;
+  try {
+    const client = getGeminiClient();
+    const prompt = `Formule uma matriz completa de anúncios persuasivos direto-para-conversão em tráfego pago visando captar leads automotivos para o produto/serviço: "${product || 'Revisão Completa Kaen Especial'}".
+    Audiência de motoristas alvo: ${audience || 'Motoristas da cidade e motoristas de aplicativo'}.
+    Orçamento estipulado das campanhas: ${budget || 'Baixo ou intermediário'}.
+    Escreva anúncios diferentes focados com ângulos de vendas distintos (como economia a longo prazo, perigo imediato nas estradas, ou proposta irresistível por tempo limitado).`;
+
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            campaigns: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  platform: { type: Type.STRING },
+                  angle: { type: Type.STRING },
+                  copy: { type: Type.STRING },
+                  headline: { type: Type.STRING }
+                },
+                required: ["platform", "angle", "copy", "headline"]
+              }
+            }
+          },
+          required: ["campaigns"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text || "{}");
+    result.product = product;
+    result.budget = budget;
+    res.json(result);
+  } catch (error: any) {
+    console.error("Gemini Ads Matrix Generation Failed:", error);
+    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para Anúncios: " + error.message });
+  }
+});
+
+app.post("/api/gemini/crm-message", async (req, res) => {
+  const { clientName, clientPhone, messageType, details } = req.body;
+  try {
+    const client = getGeminiClient();
+    const prompt = `Escreva uma mensagem de WhatsApp extremamente Curta, Elegante, Rápida e Objetiva no estilo de lembrete formal de faturamento ou cobrança de alto padrão para o cliente de nome "${clientName}".
+    Código/Tipo do relacionamento: ${messageType} (as opções legítimas são: feedback rápido pós-entrega, agendamento de revisão programada, ou aviso elegante de cobrança de orçamento/fatura em aberto).
+    Detalhes adicionais ou valores a incluir: "${details || 'Nenhum detalhe adicional inserido'}".
+
+    REGRAS CRÍTICAS DE TEXTO:
+    1. Nunca gere um texto longo ou parágrafo floreado. Seja muito direto, prático e rápido.
+    2. Use formatação profissional e limpa com termos formais adequados ("estilo cobrança/protocolo").
+    3. Use marcadores gráficos sofisticados (como ⚡, ↳, *negritos*) e espaçamento minimalista para o WhatsApp.
+    4. Limite o corpo principal a no máximo 4 ou 5 linhas.
+
+    Exemplo de layout esperado (siga similar em português):
+    ※ *KAEN MOTORSPORTS* ※
+    ↳ *AVISO DE REVISÃO / FATURA*
+    Prezado *${clientName}*, identificamos...
+    *Status:* [Detalhe curto]
+    Agradecemos a preferência.`;
+
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            message: { type: Type.STRING }
+          },
+          required: ["message"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text || "{}");
+    result.clientName = clientName;
+    result.playerPhone = clientPhone;
+    result.type = messageType;
+    res.json(result);
+  } catch (error: any) {
+    console.error("Gemini CRM Message Generation Failed:", error);
+    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para CRM: " + error.message });
+  }
 });
 
 async function startServer() {

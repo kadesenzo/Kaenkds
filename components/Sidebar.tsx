@@ -3,7 +3,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Car, PlusSquare, FileText, Package, UserCheck,
-  Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays
+  Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,6 +22,9 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
     { category: 'VENDAS', items: [
       { name: 'Emitir Nota', icon: PlusSquare, path: '/orders/new', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Notas / OS', icon: FileText, path: '/orders', roles: ['Dono', 'Recepção', 'Funcionário'] },
+    ]},
+    { category: 'CRM COM IA', items: [
+      { name: 'Notificações IA', icon: Sparkles, path: '/ai-marketing', roles: ['Dono', 'Recepção', 'Funcionário'] },
     ]},
     { category: 'FINANCEIRO', items: [
       { name: 'Fluxo de Caixa', icon: PieChart, path: '/financial', roles: ['Dono'] },
