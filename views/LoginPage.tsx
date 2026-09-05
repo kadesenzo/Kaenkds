@@ -5,6 +5,7 @@ import {
   Lock, ArrowRight, Trash2, CheckCircle2, ShieldAlert 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import KaenLogo from '../components/KaenLogo';
 
 interface LoginPageProps {
   onLogin: (username: string, role: 'Dono' | 'Funcionário' | 'Recepção', realName: string, activeUser: string) => void;
@@ -474,14 +475,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       </button>
 
       <div className="w-full max-w-md space-y-8 md:space-y-12 flex flex-col items-center relative z-10 py-10">
-        <div className="text-center space-y-4 md:space-y-6">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#FF2D55] rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_20px_50px_rgba(255,45,85,0.35)] border border-white/20">
-            <Shield size={32} className="text-white sm:size-40" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tighter uppercase italic leading-none">KAEN</h1>
-            <p className="text-[9px] sm:text-[10px] font-black text-zinc-700 uppercase tracking-[0.6em] italic">AUTENTICAÇÃO DE SEGURANÇA</p>
-          </div>
+        <div className="text-center space-y-2 md:space-y-3 flex flex-col items-center">
+          <KaenLogo variant="horizontal" className="h-12 sm:h-16 md:h-18 w-auto drop-shadow-xl" />
+          <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-[0.4em] italic">AUTENTICAÇÃO DE SEGURANÇA</p>
         </div>
 
         <div className="w-full glass-card p-6 sm:p-10 md:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] relative overflow-hidden border border-white/5 shadow-2xl">

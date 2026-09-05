@@ -6,6 +6,7 @@ import {
   Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles,
   BookOpen
 } from 'lucide-react';
+import KaenLogo from './KaenLogo';
 
 interface SidebarProps {
   role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
@@ -50,22 +51,16 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
       )}
 
       <aside className={`
-        fixed inset-y-8 left-8 z-[150] w-[21rem] glass-card rounded-[3.5rem] transition-all duration-700 transform ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-hidden shadow-[0_50px_120px_rgba(0,0,0,0.9)] border-white/10
+        fixed inset-y-0 left-0 sm:inset-y-4 sm:left-4 z-[150] w-[85vw] sm:w-[21rem] glass-card rounded-r-[2.5rem] sm:rounded-[3rem] lg:rounded-[3.5rem] transition-all duration-500 transform ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-hidden shadow-[0_50px_120px_rgba(0,0,0,0.9)] border-white/10
         ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-[125%] opacity-0 pointer-events-none lg:translate-x-0 lg:opacity-100 lg:pointer-events-auto'}
         lg:relative lg:inset-y-0 lg:left-0 lg:m-8 lg:mr-0
       `}>
-        <div className="p-12 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center space-x-5">
-            <div className="w-14 h-14 bg-[#FF2D55] rounded-2xl flex items-center justify-center shadow-lg shadow-[#FF2D55]/30 border border-white/20">
-              <Wrench className="text-white w-8 h-8" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-3xl font-black tracking-tighter text-white uppercase italic leading-none">KAEN</span>
-              <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.4em] mt-1 italic">BEYOND LIMITS</span>
-            </div>
+        <div className="p-6 sm:p-8 lg:p-12 flex items-center justify-between flex-shrink-0 border-b border-white/5 lg:border-none">
+          <div className="flex items-center">
+            <KaenLogo variant="horizontal" className="h-9 sm:h-10 w-auto" />
           </div>
-          <button onClick={onClose} className="p-4 bg-white/5 hover:bg-[#FF2D55] rounded-2xl text-zinc-500 hover:text-white transition-all active:scale-90 lg:hidden">
-            <X size={24}/>
+          <button onClick={onClose} className="p-2.5 sm:p-3 bg-white/5 hover:bg-[#FF2D55] rounded-xl text-zinc-400 hover:text-white transition-all active:scale-90 lg:hidden cursor-pointer" aria-label="Fechar Menu">
+            <X size={20}/>
           </button>
         </div>
 

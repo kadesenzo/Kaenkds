@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Menu, RefreshCw, LayoutDashboard, Wrench, Users, Shield, Smartphone, Lock, ShieldAlert, X } from 'lucide-react';
+import { LogOut, Menu, RefreshCw, LayoutDashboard, Wrench, Users, Shield, Smartphone, Lock, ShieldAlert, X, Cloud } from 'lucide-react';
 import { SyncStatus } from '../types';
 
 interface HeaderProps {
@@ -105,14 +105,18 @@ const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-zinc-900/45 rounded-full border border-white/5">
+        <div 
+          className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-zinc-900/60 rounded-full border border-white/5"
+          title="Banco de Dados na Nuvem (Firebase Firestore) sincronizado em tempo real"
+        >
           {syncStatus === SyncStatus.SYNCING ? (
-            <RefreshCw size={12} className="text-[#FF2D55] animate-spin" />
+            <RefreshCw size={11} className="text-[#FF2D55] animate-spin" />
           ) : (
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+            <Cloud size={12} className="text-emerald-400 animate-pulse" />
           )}
-          <span className="text-[8px] font-black uppercase tracking-[0.15em] text-zinc-400">
-            {syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Conectado'}
+          <span className="text-[8px] font-black uppercase tracking-[0.15em] text-zinc-300 flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${syncStatus === SyncStatus.SYNCING ? 'bg-amber-400' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'}`}></span>
+            {syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Nuvem Conectada'}
           </span>
         </div>
 

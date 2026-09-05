@@ -22,6 +22,7 @@ import { ProjectDocument } from './views/ProjectDocument';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
+import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud } from './src/lib/firebase';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -214,8 +215,32 @@ const App: React.FC = () => {
     window.addEventListener('focus', handleSyncTrigger);
     document.addEventListener('visibilitychange', handleSyncTrigger);
 
+    // 4. Real-time Firebase Firestore cloud listener
+    const unsubscribeCloud = subscribeToWorkshopCloud((cloudData) => {
+      let anyChanged = false;
+      for (const [k, v] of Object.entries(cloudData)) {
+        if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
+        const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
+        const targetKey1 = `kaenpro_${tenant}_${cleanKey}`;
+        const targetKey2 = `kaenpro_rafael_${cleanKey}`;
+        const strVal = JSON.stringify(v);
+        if (localStorage.getItem(targetKey1) !== strVal) {
+          localStorage.setItem(targetKey1, strVal);
+          anyChanged = true;
+        }
+        if (localStorage.getItem(targetKey2) !== strVal) {
+          localStorage.setItem(targetKey2, strVal);
+        }
+      }
+      if (anyChanged) {
+        window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+      }
+      setSyncStatus(SyncStatus.SYNCED);
+    });
+
     return () => {
       eventSource?.close();
+      unsubscribeCloud();
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleSyncTrigger);
       document.removeEventListener('visibilitychange', handleSyncTrigger);
@@ -255,15 +280,24 @@ const App: React.FC = () => {
     if (!session) return;
     const tenant = session.username;
     const userKey = `kaenpro_${tenant}_${key}`;
+    const sharedKey = `kaenpro_rafael_${key}`;
     localStorage.setItem(userKey, JSON.stringify(data));
+    localStorage.setItem(sharedKey, JSON.stringify(data));
     
     setSyncStatus(SyncStatus.SYNCING);
     try {
+      // 1. Direct Firebase Firestore cloud sync
+      saveWorkshopFieldToCloud(sharedKey, data).catch((err) => {
+        console.warn("Direct Firestore write notification:", err);
+      });
+
+      // 2. Server API sync and SSE broadcast
       await fetch(`/api/sync/${tenant}/${key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
       });
+      
       // Fire internal update as well for instant single-page refresh
       window.dispatchEvent(new CustomEvent('kaen_storage_updated', { detail: { key, value: data } }));
     } catch (e) {

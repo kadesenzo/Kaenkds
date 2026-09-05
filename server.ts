@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 const app = express();
 const PORT = 3000;
@@ -23,6 +25,23 @@ function getGeminiClient() {
   return ai;
 }
 
+// Initialize Firebase Firestore for persistent cloud storage
+const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+let firestoreDb: any = null;
+
+if (fs.existsSync(firebaseConfigPath)) {
+  try {
+    const fbConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+    const fbApp = getApps().length === 0 ? initializeApp(fbConfig) : getApp();
+    firestoreDb = fbConfig.firestoreDatabaseId && fbConfig.firestoreDatabaseId !== "(default)"
+      ? getFirestore(fbApp, fbConfig.firestoreDatabaseId)
+      : getFirestore(fbApp);
+    console.log("🔥 Firebase Firestore connected on backend!");
+  } catch (err) {
+    console.error("Failed to initialize Firebase on backend:", err);
+  }
+}
+
 // Vercel environment has a read-only filesystem except for /tmp.
 // We make the DB_PATH point to /tmp/kaen_db.json when running on Vercel
 // so file writes will not crash, and we pre-populate it from the workspace template if present.
@@ -34,27 +53,16 @@ app.use(express.json({ limit: "50mb" }));
 
 // In-memory cache for ultra-fast reading in Serverless environment
 let dbCache: any = null;
-const CLOUD_DB_ID = "999d1f6a_d34c_4a15_ae5c_e0ceb03074d1";
-const CLOUD_DB_URL = `https://kvdb.io/${CLOUD_DB_ID}/kaen_database`;
+const FIRESTORE_DOC_ID = "kaen_shared_database";
 
 // Load database state helper
 async function loadCloudDb() {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-    const res = await fetch(`${CLOUD_DB_URL}?_t=${Date.now()}`, {
-      signal: controller.signal,
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-      }
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.trim().startsWith("{")) {
-        const cloudData = JSON.parse(text);
+  if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "workshops", FIRESTORE_DOC_ID);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const cloudData = snap.data();
         if (cloudData && typeof cloudData === 'object') {
           dbCache = { ...readDb(), ...cloudData };
           try {
@@ -64,10 +72,17 @@ async function loadCloudDb() {
           }
           return dbCache;
         }
+      } else {
+        // Seed initial data into Firestore if empty
+        const currentData = readDb();
+        if (currentData && Object.keys(currentData).length > 0) {
+          await setDoc(docRef, currentData);
+          console.log("🔥 Seeded initial workshop data to Firestore!");
+        }
       }
+    } catch (err) {
+      console.warn("Firestore cloud fetch warning:", err);
     }
-  } catch (err) {
-    // Cloud sync fallback gracefully to local database
   }
   return readDb();
 }
@@ -104,12 +119,17 @@ function writeDb(data: any) {
     console.error("Error writing local database", e);
   }
 
-  // Persist to Cloud in the background dynamically (Does not block Express process)
-  fetch(CLOUD_DB_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify(data)
-  }).catch(() => {});
+  // Persist directly to Firebase Firestore
+  if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "workshops", FIRESTORE_DOC_ID);
+      setDoc(docRef, data, { merge: true }).catch(err => {
+        console.error("Firestore persistence error:", err);
+      });
+    } catch (err) {
+      console.error("Firestore write exception:", err);
+    }
+  }
 }
 
 // Presence Interfaces
@@ -169,16 +189,31 @@ function broadcastPresence(username: string) {
 }
 
 // REST endpoints for synchronization
-app.get("/api/sync/:username", (req, res) => {
+app.get("/api/sync/:username", async (req, res) => {
   const { username } = req.params;
+  if (dbCache === null) {
+    await loadCloudDb();
+  }
   const db = readDb();
   const userPrefix = `kaenpro_${username}_`;
+  const sharedPrefix = `kaenpro_rafael_`;
   const userData: Record<string, any> = {};
   
+  // 1. Populate with shared workshop base data
   for (const [key, value] of Object.entries(db)) {
-    if (key.startsWith(userPrefix)) {
-      const dbKey = key.slice(userPrefix.length);
+    if (key.startsWith(sharedPrefix)) {
+      const dbKey = key.slice(sharedPrefix.length);
       userData[dbKey] = value;
+    }
+  }
+
+  // 2. Overlay with user-specific keys if username is not the master tenant
+  if (username !== "rafael") {
+    for (const [key, value] of Object.entries(db)) {
+      if (key.startsWith(userPrefix)) {
+        const dbKey = key.slice(userPrefix.length);
+        userData[dbKey] = value;
+      }
     }
   }
   
@@ -194,11 +229,24 @@ app.post("/api/sync/:username/:key", async (req, res) => {
   const db = readDb();
   
   const userKey = `kaenpro_${username}_${key}`;
+  const sharedKey = `kaenpro_rafael_${key}`;
+  
+  // Update both the specific user namespace and the workshop shared namespace
   db[userKey] = payload;
+  db[sharedKey] = payload;
   writeDb(db);
   
-  // Broadcast data update to all sessions
+  // Broadcast real-time data update to current user and all other active sessions across devices
   broadcastToUser(username, { key, value: payload });
+  if (username !== "rafael") {
+    broadcastToUser("rafael", { key, value: payload });
+  }
+  for (const otherUser of Object.keys(clients)) {
+    if (otherUser !== username && otherUser !== "rafael") {
+      broadcastToUser(otherUser, { key, value: payload });
+    }
+  }
+
   res.json({ success: true });
 });
 

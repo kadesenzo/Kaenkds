@@ -9,6 +9,7 @@ import {
   Search, Shield, Zap, Camera, FileText, Check, AlertCircle, RefreshCw,
   Sparkles, Layers, ExternalLink, Award, CheckCircle, ChevronDown, Flame
 } from 'lucide-react';
+import KaenLogo from '../components/KaenLogo';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -42,67 +43,112 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-black text-white min-h-screen selection:bg-[#FF2D55] selection:text-white font-['Inter']">
+    <div className="bg-black text-white min-h-screen selection:bg-[#FF2D55] selection:text-white font-['Inter'] overflow-x-hidden">
       
-      {/* MENU LATERAL (DRAWER) */}
-      <div className={`fixed inset-y-0 right-0 z-[200] w-[320px] glass-card border-l border-white/10 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] p-10 flex flex-col ${isMenuOpen ? 'translate-x-0 shadow-[-50px_0_100px_rgba(0,0,0,0.9)]' : 'translate-x-full'}`}>
-         <button onClick={() => setIsMenuOpen(false)} className="self-end p-3 hover:text-[#FF2D55] transition-colors mb-12">
-            <X size={32} />
-         </button>
-         
-         <div className="space-y-12">
+      {/* BACKDROP DO MENU MOBILE */}
+      {isMenuOpen && (
+        <div 
+          onClick={() => setIsMenuOpen(false)} 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-[190] animate-in fade-in duration-300" 
+          aria-hidden="true"
+        />
+      )}
+
+      {/* MENU LATERAL (DRAWER) COM NAVEGAÇÃO COMPLETA */}
+      <div className={`fixed inset-y-0 right-0 z-[200] w-[85vw] max-w-[340px] glass-card border-l border-white/10 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] p-6 sm:p-8 flex flex-col justify-between overflow-y-auto ${isMenuOpen ? 'translate-x-0 shadow-[-50px_0_100px_rgba(0,0,0,0.9)]' : 'translate-x-full'}`}>
+        <div>
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+            <KaenLogo variant="horizontal" className="h-7 w-auto" />
+            <button 
+              onClick={() => setIsMenuOpen(false)} 
+              className="p-2 hover:text-[#FF2D55] transition-colors rounded-xl bg-white/5 hover:bg-white/10 active:scale-95" 
+              aria-label="Fechar menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-6">
             <div>
-               <p className="text-[10px] font-black uppercase tracking-[0.5em] text-zinc-600 italic mb-6">SISTEMA INTERNO</p>
-               <nav className="flex flex-col gap-6">
-                  <button onClick={() => navigate('/login')} className="flex items-center gap-5 group text-left">
-                     <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-[#FF2D55] transition-all border border-white/5">
-                        <UserCheck size={24}/>
-                     </div>
-                     <div>
-                        <p className="font-black uppercase italic tracking-tighter text-sm">Entrar no Painel</p>
-                        <p className="text-[9px] text-zinc-500 uppercase font-bold">Gestão & Dashboards</p>
-                     </div>
-                  </button>
-                  <button onClick={() => navigate('/terminal')} className="flex items-center gap-5 group text-left">
-                     <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 transition-all border border-white/5">
-                        <Smartphone size={24}/>
-                     </div>
-                     <div>
-                        <p className="font-black uppercase italic tracking-tighter text-sm">Terminal Mecânico</p>
-                        <p className="text-[9px] text-zinc-500 uppercase font-bold">Lançamento de Pista</p>
-                     </div>
-                  </button>
-                  <button onClick={() => navigate('/login')} className="flex items-center gap-5 group text-left">
-                     <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 transition-all border border-white/5">
-                        <FileText size={24}/>
-                     </div>
-                     <div>
-                        <p className="font-black uppercase italic tracking-tighter text-sm">Dossiê do Projeto</p>
-                        <p className="text-[9px] text-zinc-500 uppercase font-bold">Plano Oficial & PDF</p>
-                     </div>
-                  </button>
-               </nav>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-3">NAVEGAÇÃO DO SITE</p>
+              <nav className="flex flex-col gap-2">
+                <button 
+                  onClick={() => { setIsMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-left text-sm font-bold text-white transition-all"
+                >
+                  <span>Início</span>
+                  <ArrowRight size={14} className="text-zinc-500" />
+                </button>
+                <a 
+                  href="#sobre" 
+                  onClick={() => setIsMenuOpen(false)} 
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-left text-sm font-bold text-zinc-300 hover:text-white transition-all"
+                >
+                  <span>Sobre Nós</span>
+                  <ArrowRight size={14} className="text-zinc-500" />
+                </a>
+                <a 
+                  href="#servicos" 
+                  onClick={() => setIsMenuOpen(false)} 
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-left text-sm font-bold text-zinc-300 hover:text-white transition-all"
+                >
+                  <span>Serviços Especializados</span>
+                  <ArrowRight size={14} className="text-zinc-500" />
+                </a>
+                <button 
+                  onClick={() => { setIsMenuOpen(false); setShowBooking(true); }} 
+                  className="flex items-center justify-between p-3 rounded-xl bg-[#FF4D2D]/15 border border-[#FF4D2D]/30 text-left text-sm font-black text-[#FF4D2D] hover:bg-[#FF4D2D] hover:text-white transition-all mt-1"
+                >
+                  <span>Agendar Atendimento</span>
+                  <Calendar size={15} />
+                </button>
+              </nav>
             </div>
 
-            <div className="pt-12 border-t border-white/5">
-               <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest leading-relaxed">
-                  KAEN NETWORK V26<br/>ALTA PERFORMANCE AUTOMOTIVA
-               </p>
+            <div className="pt-4 border-t border-white/5">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-3">ÁREA OPERACIONAL</p>
+              <nav className="flex flex-col gap-2.5">
+                <button 
+                  onClick={() => { setIsMenuOpen(false); navigate('/login'); }} 
+                  className="flex items-center gap-3.5 p-3 rounded-xl hover:bg-white/5 text-left group transition-all"
+                >
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center group-hover:bg-[#FF2D55] text-white transition-all shrink-0">
+                    <UserCheck size={18}/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-white leading-tight">Painel Administrativo</p>
+                    <p className="text-[9px] text-zinc-500 font-semibold">Login Dono & Recepção</p>
+                  </div>
+                </button>
+                <button 
+                  onClick={() => { setIsMenuOpen(false); navigate('/terminal'); }} 
+                  className="flex items-center gap-3.5 p-3 rounded-xl hover:bg-white/5 text-left group transition-all"
+                >
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center group-hover:bg-blue-600 text-white transition-all shrink-0">
+                    <Smartphone size={18}/>
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-white leading-tight">Terminal Mecânico</p>
+                    <p className="text-[9px] text-zinc-500 font-semibold">Lançamento de Pista</p>
+                  </div>
+                </button>
+              </nav>
             </div>
-         </div>
+          </div>
+        </div>
+
+        <div className="pt-6 border-t border-white/5">
+          <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest leading-relaxed">
+            AUTO MECÂNICA KAEN<br/>REGISTRO - SÃO PAULO
+          </p>
+        </div>
       </div>
 
-      {/* NAVBAR FLUTUANTE ULTRA-CLEAN */}
-      <div className="fixed top-4 left-0 w-full z-[100] px-4 sm:px-8 flex justify-center">
-        <nav className="w-full max-w-7xl glass-nav rounded-full px-5 sm:px-8 py-3.5 flex justify-between items-center shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-10 h-10 bg-gradient-to-br from-[#FF4D2D] to-[#FF2D55] rounded-xl flex items-center justify-center shadow-lg border border-white/20">
-              <Wrench size={20} className="text-white" />
-            </div>
-            <div>
-              <span className="font-display text-xl font-black tracking-tight text-white block leading-none">KAEN</span>
-              <span className="text-[8px] font-extrabold text-zinc-400 uppercase tracking-[0.2em] block">AUTO MECÂNICA</span>
-            </div>
+      {/* NAVBAR FLUTUANTE ULTRA-CLEAN E 100% RESPONSIVA */}
+      <div className="fixed top-3 sm:top-4 left-0 w-full z-[100] px-3 sm:px-8 flex justify-center">
+        <nav className="w-full max-w-7xl glass-nav rounded-full px-3.5 sm:px-8 py-2.5 sm:py-3.5 flex justify-between items-center shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+          <div className="flex items-center gap-2 cursor-pointer select-none" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <KaenLogo variant="horizontal" className="h-7 sm:h-9 md:h-10 w-auto" />
           </div>
           
           <div className="hidden lg:flex items-center gap-8">
@@ -124,27 +170,29 @@ const LandingPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button 
               onClick={() => setShowBooking(true)}
-              className="bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white px-6 sm:px-8 py-2.5 rounded-full font-bold text-xs sm:text-sm tracking-wide shadow-[0_10px_25px_rgba(255,77,45,0.4)] active:scale-95 transition-all hover:opacity-95 flex items-center gap-2"
+              className="bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white px-3 sm:px-7 py-2 sm:py-2.5 rounded-full font-bold text-xs sm:text-sm tracking-wide shadow-[0_10px_25px_rgba(255,77,45,0.4)] active:scale-95 transition-all hover:opacity-95 flex items-center gap-1.5 sm:gap-2 shrink-0"
             >
-              <span>Agende uma Visita</span>
-              <ArrowRight size={14} />
+              <span className="hidden sm:inline">Agende uma Visita</span>
+              <span className="sm:hidden">Agendar</span>
+              <ArrowRight size={13} className="shrink-0" />
             </button>
             <button 
               onClick={() => setIsMenuOpen(true)}
-              className="w-11 h-11 glass-card rounded-full flex items-center justify-center text-white hover:border-[#FF2D55] transition-all group"
-              title="Acessar Sistema"
+              className="w-9 h-9 sm:w-11 sm:h-11 glass-card rounded-full flex items-center justify-center text-white hover:border-[#FF2D55] transition-all group shrink-0"
+              title="Acessar Menu"
+              aria-label="Abrir Menu"
             >
-              <Menu size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+              <Menu size={18} className="group-hover:rotate-90 transition-transform duration-300" />
             </button>
           </div>
         </nav>
       </div>
 
       {/* SEÇÃO HERO CINEMÁTICA ESTILO CASA NOVA */}
-      <section className="relative min-h-screen flex flex-col justify-between pt-36 pb-16 px-4 sm:px-8 overflow-hidden">
+      <section className="relative min-h-[92vh] sm:min-h-screen flex flex-col justify-between pt-24 sm:pt-36 pb-12 sm:pb-16 px-4 sm:px-8 overflow-hidden">
         {/* FOTOGRAFIA CINEMÁTICA DE FUNDO COM OVERLAYS SUTIS */}
         <div className="absolute inset-0 z-0">
           <img 
@@ -154,57 +202,58 @@ const LandingPage: React.FC = () => {
             referrerPolicy="no-referrer"
           />
           {/* Gradients para contraste perfeito */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/55" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-transparent to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-black/65" />
         </div>
         
-        {/* TIPOGRAFIA GIGANTE EM DESTAQUE NO TOPO (ESTILO "CASA NOVA") */}
-        <div className="relative z-10 w-full text-center mt-6 md:mt-12 pointer-events-none">
-          <h1 className="font-display font-black text-[22vw] md:text-[14.5rem] tracking-tight leading-none uppercase select-none bg-gradient-to-b from-[#FFA751] via-[#FF5E36] to-[#E61F48] bg-clip-text text-transparent drop-shadow-[0_20px_40px_rgba(0,0,0,0.9)] opacity-95">
-            KAEN
-          </h1>
+        {/* LOGO OFICIAL KAEN EM DESTAQUE NO TOPO DA HERO */}
+        <div className="relative z-10 w-full text-center mt-6 sm:mt-10 md:mt-14 pointer-events-none flex flex-col items-center">
+          <KaenLogo variant="horizontal" className="h-16 sm:h-24 md:h-32 lg:h-36 w-auto drop-shadow-[0_20px_45px_rgba(0,0,0,0.95)]" />
+          <p className="text-[10px] sm:text-xs font-black text-white/80 uppercase tracking-[0.35em] mt-3 sm:mt-4 drop-shadow">
+            CENTRO AUTOMOTIVO DE ALTA PRECISÃO • REGISTRO/SP
+          </p>
         </div>
 
         {/* CONTAINER INFERIOR: OVERLAY ESQUERDO + CARDS FLUTUANTES DIREITO */}
-        <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-end mt-auto pt-12">
+        <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-end mt-8 sm:mt-auto pt-6 sm:pt-12">
           
           {/* BOTTOM LEFT: HEADLINE + TEXTO DESCRITIVO + PROVA SOCIAL */}
-          <div className="lg:col-span-7 space-y-6 text-left">
+          <div className="lg:col-span-7 space-y-4 sm:space-y-6 text-left">
             <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-tight drop-shadow-md">
               Descubra uma mecânica selecionada com sofisticação e precisão.
             </h2>
-            <p className="text-sm sm:text-base text-zinc-200 font-medium leading-relaxed max-w-xl drop-shadow">
+            <p className="text-xs sm:text-base text-zinc-200 font-medium leading-relaxed max-w-xl drop-shadow">
               Na Auto Mecânica Kaen, conectamos você aos melhores padrões de engenharia automotiva para <strong className="text-[#FF7A50] font-bold">viver e acelerar</strong> com segurança total.
             </p>
 
-            {/* AVATAR SOCIAL PROOF (IGUAL À IMAGEM DE REFERÊNCIA) */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            {/* AVATAR SOCIAL PROOF */}
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
               <div className="flex -space-x-3 items-center">
                 <img 
                   src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120" 
                   alt="Cliente Kaen" 
-                  className="w-11 h-11 rounded-full object-cover border-2 border-black shadow-lg"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-black shadow-lg"
                   referrerPolicy="no-referrer"
                 />
                 <img 
                   src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120" 
                   alt="Cliente Kaen" 
-                  className="w-11 h-11 rounded-full object-cover border-2 border-black shadow-lg"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-black shadow-lg"
                   referrerPolicy="no-referrer"
                 />
                 <img 
                   src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120" 
                   alt="Cliente Kaen" 
-                  className="w-11 h-11 rounded-full object-cover border-2 border-black shadow-lg"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-black shadow-lg"
                   referrerPolicy="no-referrer"
                 />
               </div>
               <div>
-                <p className="text-sm font-extrabold text-white leading-tight flex items-center gap-1.5">
+                <p className="text-xs sm:text-sm font-extrabold text-white leading-tight flex items-center gap-1.5">
                   <span>+2.500 Clientes Satisfeitos</span>
                   <span className="text-amber-400">★★★★★</span>
                 </p>
-                <p className="text-[11px] text-zinc-300 font-medium">Registro/SP • Rua Joaquim Marques Alves, 765</p>
+                <p className="text-[10px] sm:text-[11px] text-zinc-300 font-medium">Registro/SP • Rua Joaquim Marques Alves, 765</p>
               </div>
             </div>
           </div>
@@ -213,10 +262,10 @@ const LandingPage: React.FC = () => {
           <div className="lg:col-span-5 flex flex-col gap-3 w-full sm:max-w-md lg:ml-auto">
             
             {/* CARD BRANCO/TRANSLÚCIDO COM LOCALIZAÇÃO */}
-            <div className="bg-white text-zinc-900 p-6 rounded-3xl shadow-2xl space-y-4 text-left border border-white/60">
+            <div className="bg-white text-zinc-900 p-5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-2xl space-y-3 sm:space-y-4 text-left border border-white/60">
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <h3 className="font-extrabold text-xl text-black tracking-tight leading-tight">Auto Mecânica Kaen</h3>
+                  <h3 className="font-extrabold text-lg sm:text-xl text-black tracking-tight leading-tight">Auto Mecânica Kaen</h3>
                   <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-full">
                     Aberto Hoje
                   </span>
@@ -228,7 +277,7 @@ const LandingPage: React.FC = () => {
               <div className="flex items-center gap-2 pt-2 border-t border-zinc-100">
                 <button 
                   onClick={() => setShowBooking(true)}
-                  className="flex-1 bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white py-3.5 px-4 rounded-xl font-black uppercase text-[11px] tracking-wider shadow-md hover:opacity-95 active:scale-95 transition-all text-center cursor-pointer"
+                  className="flex-1 bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white py-3 sm:py-3.5 px-3 sm:px-4 rounded-xl font-black uppercase text-[10px] sm:text-[11px] tracking-wider shadow-md hover:opacity-95 active:scale-95 transition-all text-center cursor-pointer"
                 >
                   Agendar Visita
                 </button>
@@ -236,7 +285,7 @@ const LandingPage: React.FC = () => {
                   href="https://maps.google.com/?q=Rua+Joaquim+Marques+Alves+765+Registro+SP" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 py-3.5 px-4 rounded-xl font-extrabold text-[11px] transition-all flex items-center justify-center gap-1.5"
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 py-3 sm:py-3.5 px-3.5 sm:px-4 rounded-xl font-extrabold text-[10px] sm:text-[11px] transition-all flex items-center justify-center gap-1.5"
                   title="Ver no Google Maps"
                 >
                   <MapPin size={14} className="text-[#FF4D2D]" />
@@ -251,68 +300,68 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* SEÇÃO SOBRE NÓS: ALTA ENGENHARIA AUTOMOTIVA */}
-      <section id="sobre" className="py-28 px-4 sm:px-8 bg-zinc-950 border-t border-white/5 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-6 space-y-6 text-left">
-            <span className="text-[#FF4D2D] font-extrabold uppercase tracking-[0.3em] text-xs">A OFICINA • PADRÃO HOMOLOGADO</span>
-            <h2 className="font-display text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
+      <section id="sobre" className="py-16 sm:py-28 px-4 sm:px-8 bg-zinc-950 border-t border-white/5 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 items-center">
+          <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-left">
+            <span className="text-[#FF4D2D] font-extrabold uppercase tracking-[0.3em] text-[10px] sm:text-xs">A OFICINA • PADRÃO HOMOLOGADO</span>
+            <h2 className="font-display text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight">
               Excelência, precisão e respeito pelo seu veículo.
             </h2>
-            <p className="text-zinc-300 font-medium text-sm sm:text-base leading-relaxed">
+            <p className="text-zinc-300 font-medium text-xs sm:text-base leading-relaxed">
               Fundada em Registro/SP, a Auto Mecânica Kaen estabeleceu um novo patamar técnico na região. Aliamos diagnóstico computadorizado de padrão internacional a uma postura de absoluta honestidade e transparência com o cliente.
             </p>
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="bg-zinc-900/60 border border-white/5 p-5 rounded-2xl">
-                <p className="text-3xl font-display font-black text-[#FF4D2D]">100%</p>
-                <p className="text-xs font-bold text-zinc-300 mt-1">Laudos Fotográficos</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">Você vê cada detalhe antes de autorizar.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2 sm:pt-4">
+              <div className="bg-zinc-900/60 border border-white/5 p-4 sm:p-5 rounded-2xl">
+                <p className="text-2xl sm:text-3xl font-display font-black text-[#FF4D2D]">100%</p>
+                <p className="text-xs font-bold text-zinc-200 mt-1">Laudos Fotográficos</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5">Você vê cada detalhe antes de autorizar.</p>
               </div>
-              <div className="bg-zinc-900/60 border border-white/5 p-5 rounded-2xl">
-                <p className="text-3xl font-display font-black text-white">90 Dias</p>
-                <p className="text-xs font-bold text-zinc-300 mt-1">Garantia Técnica Kaen</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">Em peças homologadas e mão de obra.</p>
+              <div className="bg-zinc-900/60 border border-white/5 p-4 sm:p-5 rounded-2xl">
+                <p className="text-2xl sm:text-3xl font-display font-black text-white">90 Dias</p>
+                <p className="text-xs font-bold text-zinc-200 mt-1">Garantia Técnica Kaen</p>
+                <p className="text-[10px] text-zinc-400 mt-0.5">Em peças homologadas e mão de obra.</p>
               </div>
             </div>
           </div>
           
           <div className="lg:col-span-6 relative">
-            <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black p-8 sm:p-10 shadow-2xl space-y-6 text-left">
-              <div className="w-14 h-14 rounded-2xl bg-[#FF4D2D]/10 border border-[#FF4D2D]/30 flex items-center justify-center text-[#FF4D2D]">
-                <MapPin size={28} />
+            <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black p-6 sm:p-10 shadow-2xl space-y-4 sm:space-y-6 text-left">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#FF4D2D]/10 border border-[#FF4D2D]/30 flex items-center justify-center text-[#FF4D2D]">
+                <MapPin size={24} className="sm:size-28" />
               </div>
 
-              <div className="space-y-2">
-                <span className="text-xs font-black text-[#FF4D2D] uppercase tracking-widest block">REGISTRO / SP</span>
-                <h4 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Rua Joaquim Marques Alves, 765</h4>
-                <p className="text-sm text-zinc-400 leading-relaxed">
+              <div className="space-y-1.5 sm:space-y-2">
+                <span className="text-[10px] sm:text-xs font-black text-[#FF4D2D] uppercase tracking-widest block">REGISTRO / SP</span>
+                <h4 className="text-xl sm:text-3xl font-extrabold text-white tracking-tight">Rua Joaquim Marques Alves, 765</h4>
+                <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
                   Atendimento especializado de segunda a sexta, das 08h às 18h.
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-white/10 space-y-3">
-                <div className="flex items-center gap-3 text-xs text-zinc-300">
+              <div className="pt-3 sm:pt-4 border-t border-white/10 space-y-2 sm:space-y-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 text-xs text-zinc-300">
                   <Clock size={16} className="text-[#FF4D2D] shrink-0" />
                   <span>Horário: Segunda a Sexta, das 08h às 18h</span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-zinc-300">
+                <div className="flex items-center gap-2.5 sm:gap-3 text-xs text-zinc-300">
                   <ShieldCheck size={16} className="text-[#FF4D2D] shrink-0" />
-                  <span>Oficina credenciada com diagnósticos computadorizados e laudos técnicos</span>
+                  <span>Oficina credenciada com diagnósticos computadorizados e laudos</span>
                 </div>
               </div>
 
-              <div className="pt-4 flex flex-wrap gap-3">
+              <div className="pt-2 sm:pt-4 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                 <a 
                   href="https://maps.google.com/?q=Rua+Joaquim+Marques+Alves+765+Registro+SP" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="bg-white/10 hover:bg-white/15 text-white py-3 px-5 rounded-xl font-bold text-xs flex items-center gap-2 border border-white/10 transition-all"
+                  className="bg-white/10 hover:bg-white/15 text-white py-3 px-4 sm:px-5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-white/10 transition-all text-center w-full sm:w-auto"
                 >
-                  <MapPin size={14} className="text-[#FF4D2D]" />
+                  <MapPin size={14} className="text-[#FF4D2D] shrink-0" />
                   <span>Ver Rota no Google Maps</span>
                 </a>
                 <button
                   onClick={() => setShowBooking(true)}
-                  className="bg-[#FF4D2D] hover:bg-[#ff3814] text-white py-3 px-5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#FF4D2D]/20 active:scale-95 transition-all cursor-pointer"
+                  className="bg-[#FF4D2D] hover:bg-[#ff3814] text-white py-3 px-4 sm:px-5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#FF4D2D]/20 active:scale-95 transition-all cursor-pointer text-center w-full sm:w-auto"
                 >
                   <span>Agendar Atendimento</span>
                 </button>
@@ -323,17 +372,17 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* SEÇÃO SERVIÇOS ESPECIALIZADOS */}
-      <section id="servicos" className="py-28 px-4 sm:px-8 bg-black border-t border-white/5 relative">
-        <div className="max-w-7xl mx-auto space-y-16">
+      <section id="servicos" className="py-16 sm:py-28 px-4 sm:px-8 bg-black border-t border-white/5 relative">
+        <div className="max-w-7xl mx-auto space-y-12 sm:space-y-16">
           <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <span className="text-[#FF4D2D] font-extrabold uppercase tracking-[0.3em] text-xs">PORTFÓLIO DE ESPECIALIDADES</span>
-            <h2 className="font-display text-4xl sm:text-5xl font-black text-white tracking-tight">O Que Fazemos de Melhor</h2>
+            <span className="text-[#FF4D2D] font-extrabold uppercase tracking-[0.3em] text-[10px] sm:text-xs">PORTFÓLIO DE ESPECIALIDADES</span>
+            <h2 className="font-display text-3xl sm:text-5xl font-black text-white tracking-tight">O Que Fazemos de Melhor</h2>
             <p className="text-xs sm:text-sm text-zinc-400 font-medium leading-relaxed">
               Equipamentos de telemetria e calibração computadorizada para veículos nacionais, importados e esportivos.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 text-left">
             {[
               {
                 title: "Diagnóstico Eletrônico",
@@ -362,20 +411,20 @@ const LandingPage: React.FC = () => {
             ].map((srv, idx) => {
               const IconComp = srv.icon;
               return (
-                <div key={idx} className="bg-zinc-950/80 border border-white/5 hover:border-[#FF4D2D]/40 p-6 rounded-3xl transition-all duration-300 flex flex-col justify-between group">
-                  <div className="space-y-4">
+                <div key={idx} className="bg-zinc-950/80 border border-white/5 hover:border-[#FF4D2D]/40 p-5 sm:p-6 rounded-2xl sm:rounded-3xl transition-all duration-300 flex flex-col justify-between group">
+                  <div className="space-y-3 sm:space-y-4">
                     <div className="flex justify-between items-center">
-                      <div className="w-12 h-12 bg-white/5 group-hover:bg-[#FF4D2D] text-white rounded-2xl flex items-center justify-center transition-all">
-                        <IconComp size={22} />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/5 group-hover:bg-[#FF4D2D] text-white rounded-xl sm:rounded-2xl flex items-center justify-center transition-all">
+                        <IconComp size={20} />
                       </div>
                       <span className="text-[9px] font-bold text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full">{srv.badge}</span>
                     </div>
-                    <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-[#FF4D2D] transition-colors">{srv.title}</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight group-hover:text-[#FF4D2D] transition-colors">{srv.title}</h3>
                     <p className="text-xs text-zinc-400 leading-relaxed font-medium">{srv.desc}</p>
                   </div>
                   <button 
                     onClick={() => setShowBooking(true)}
-                    className="mt-6 text-[11px] font-bold text-[#FF4D2D] flex items-center gap-1.5 hover:gap-2.5 transition-all group-hover:underline"
+                    className="mt-5 sm:mt-6 text-[11px] font-bold text-[#FF4D2D] flex items-center gap-1.5 hover:gap-2.5 transition-all group-hover:underline"
                   >
                     <span>Solicitar Orçamento</span>
                     <ArrowRight size={13} />
@@ -387,20 +436,14 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="py-20 px-4 sm:px-8 border-t border-white/5 bg-zinc-950">
-         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 bg-gradient-to-br from-[#FF4D2D] to-[#FF2D55] rounded-2xl flex items-center justify-center shadow-lg">
-                  <Wrench size={24} className="text-white" />
-               </div>
-               <div>
-                  <span className="font-display text-2xl font-black text-white">KAEN</span>
-                  <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Auto Mecânica de Precisão • Registro/SP</p>
-               </div>
+      {/* FOOTER COM LOGO OFICIAL KAEN */}
+      <footer className="py-12 sm:py-20 px-4 sm:px-8 border-t border-white/5 bg-zinc-950">
+         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 sm:gap-8 text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start">
+              <KaenLogo variant="horizontal" className="h-8 sm:h-10 md:h-12 w-auto" />
             </div>
             
-            <div className="flex flex-wrap justify-center gap-6 text-xs text-zinc-400 font-medium">
+            <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs text-zinc-400 font-medium">
                <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white transition-colors">Início</button>
                <a href="#sobre" className="hover:text-white transition-colors">Sobre</a>
                <a href="#servicos" className="hover:text-white transition-colors">Serviços</a>
@@ -415,49 +458,53 @@ const LandingPage: React.FC = () => {
          </div>
       </footer>
 
-      {/* MODAL DE AGENDAMENTO */}
+      {/* MODAL DE AGENDAMENTO (OTIMIZADO PARA MOBILE COM SCROLL SUAVE) */}
       {showBooking && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl animate-in fade-in duration-300">
-           <div className="w-full max-w-xl bg-zinc-950 border border-white/10 p-8 sm:p-12 rounded-[2.5rem] shadow-2xl relative">
-              <button onClick={() => setShowBooking(false)} className="absolute top-8 right-8 text-zinc-400 hover:text-white transition-all">
-                <X size={28}/>
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-6 bg-black/95 backdrop-blur-3xl animate-in fade-in duration-300 overflow-y-auto">
+           <div className="w-full max-w-xl bg-zinc-950 border border-white/10 p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
+              <button 
+                onClick={() => setShowBooking(false)} 
+                className="absolute top-5 right-5 sm:top-8 sm:right-8 text-zinc-400 hover:text-white transition-all p-1"
+                aria-label="Fechar"
+              >
+                <X size={24}/>
               </button>
               
-              <div className="text-center mb-8">
+              <div className="text-center mb-6 sm:mb-8">
                  <span className="text-[#FF4D2D] font-black text-[10px] uppercase tracking-[0.3em] block mb-1">ATENDIMENTO KAEN</span>
-                 <h2 className="font-display text-3xl font-black text-white">Agendar Revisão</h2>
+                 <h2 className="font-display text-2xl sm:text-3xl font-black text-white">Agendar Revisão</h2>
                  <p className="text-xs text-zinc-400 font-medium mt-1">Reserve seu horário com os nossos especialistas técnicos</p>
               </div>
 
-              <form onSubmit={handleBooking} className="space-y-4">
+              <form onSubmit={handleBooking} className="space-y-3 sm:space-y-4">
                  <div className="space-y-1.5 text-left">
                     <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-2">Nome Completo</label>
-                    <input required type="text" placeholder="EX: RAFAEL SILVA" value={bookingForm.name} onChange={(e) => setBookingForm({...bookingForm, name: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded-xl px-5 py-3.5 text-white text-xs font-bold uppercase outline-none focus:border-[#FF4D2D] transition-all"/>
+                    <input required type="text" placeholder="EX: RAFAEL SILVA" value={bookingForm.name} onChange={(e) => setBookingForm({...bookingForm, name: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 text-white text-xs font-bold uppercase outline-none focus:border-[#FF4D2D] transition-all"/>
                  </div>
                  
-                 <div className="grid grid-cols-2 gap-4 text-left">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-left">
                     <div className="space-y-1.5">
                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-2">WhatsApp</label>
-                       <input required type="tel" placeholder="(11) 99999-9999" value={bookingForm.phone} onChange={(e) => setBookingForm({...bookingForm, phone: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-5 py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
+                       <input required type="tel" placeholder="(11) 99999-9999" value={bookingForm.phone} onChange={(e) => setBookingForm({...bookingForm, phone: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
                     </div>
                     <div className="space-y-1.5">
                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-2">Veículo / Modelo</label>
-                       <input required type="text" placeholder="EX: HONDA CIVIC 2.0" value={bookingForm.vehicle} onChange={(e) => setBookingForm({...bookingForm, vehicle: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded-xl px-5 py-3.5 text-white text-xs font-bold uppercase outline-none focus:border-[#FF4D2D] transition-all"/>
+                       <input required type="text" placeholder="EX: HONDA CIVIC 2.0" value={bookingForm.vehicle} onChange={(e) => setBookingForm({...bookingForm, vehicle: e.target.value.toUpperCase()})} className="w-full bg-black border border-white/10 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 text-white text-xs font-bold uppercase outline-none focus:border-[#FF4D2D] transition-all"/>
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-2 gap-4 text-left">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-left">
                     <div className="space-y-1.5">
                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-2">Data Desejada</label>
-                       <input required type="date" value={bookingForm.date} onChange={(e) => setBookingForm({...bookingForm, date: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-5 py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
+                       <input required type="date" value={bookingForm.date} onChange={(e) => setBookingForm({...bookingForm, date: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
                     </div>
                     <div className="space-y-1.5">
                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block ml-2">Horário Preferencial</label>
-                       <input required type="time" value={bookingForm.time} onChange={(e) => setBookingForm({...bookingForm, time: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-5 py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
+                       <input required type="time" value={bookingForm.time} onChange={(e) => setBookingForm({...bookingForm, time: e.target.value})} className="w-full bg-black border border-white/10 rounded-xl px-4 sm:px-5 py-3 sm:py-3.5 text-white text-xs font-bold outline-none focus:border-[#FF4D2D] transition-all"/>
                     </div>
                  </div>
 
-                 <button type="submit" className="w-full bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white py-4 rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg hover:opacity-95 active:scale-95 transition-all mt-4">
+                 <button type="submit" className="w-full bg-gradient-to-r from-[#FF5E36] to-[#FF2D55] text-white py-3.5 sm:py-4 rounded-xl font-bold uppercase text-xs tracking-wider shadow-lg hover:opacity-95 active:scale-95 transition-all mt-3 sm:mt-4 cursor-pointer">
                    Confirmar Agendamento no WhatsApp ↗
                  </button>
                </form>

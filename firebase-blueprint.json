@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "1.0",
+  "entities": {
+    "orders": {
+      "collection": "orders",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "osNumber": { "type": "string", "required": true },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string", "required": true },
+        "clientPhone": { "type": "string" },
+        "vehiclePlate": { "type": "string", "required": true },
+        "vehicleModel": { "type": "string", "required": true },
+        "problem": { "type": "string" },
+        "items": { "type": "array" },
+        "laborValue": { "type": "number" },
+        "totalValue": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "clients": {
+      "collection": "clients",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "phone": { "type": "string" },
+        "document": { "type": "string" },
+        "address": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "vehicles": {
+      "collection": "vehicles",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "clientId": { "type": "string" },
+        "model": { "type": "string", "required": true },
+        "brand": { "type": "string" },
+        "plate": { "type": "string", "required": true },
+        "year": { "type": "string" },
+        "km": { "type": "number" }
+      }
+    },
+    "parts": {
+      "collection": "parts",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "sku": { "type": "string" },
+        "costPrice": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "stock": { "type": "number" }
+      }
+    },
+    "transactions": {
+      "collection": "transactions",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "category": { "type": "string" },
+        "amount": { "type": "number", "required": true },
+        "method": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string" }
+      }
+    },
+    "appointments": {
+      "collection": "appointments",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "clientName": { "type": "string", "required": true },
+        "vehiclePlate": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "employees": {
+      "collection": "employees",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "role": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "users": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "username": { "type": "string", "required": true },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    }
+  }
+}
