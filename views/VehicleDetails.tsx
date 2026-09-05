@@ -38,7 +38,7 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
     items: [] as OSItem[]
   });
 
-  useEffect(() => {
+  const loadData = () => {
     const tenant = session?.username || 'rafael';
     const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_vehicles`) || '[]');
     const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_clients`) || '[]');
@@ -55,6 +55,12 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ));
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [id, session]);
 
   if (!vehicle) {

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, Eye, EyeOff, RefreshCw, Cloud, ArrowLeft, Shield, AlertTriangle, Key, CheckCircle } from 'lucide-react';
+import { 
+  Wrench, Eye, EyeOff, RefreshCw, Cloud, ArrowLeft, Shield, 
+  AlertTriangle, Key, CheckCircle, Smartphone, Laptop, ShieldCheck, 
+  Lock, ArrowRight, Trash2, CheckCircle2, ShieldAlert 
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface LoginPageProps {
@@ -82,9 +86,71 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   });
   const [roomPassword, setRoomPassword] = useState('');
   const [username, setUsername] = useState('rafael');
-  const [password, setPassword] = useState('enzo1234');
+  // Password is intentionally EMPTY - user MUST enter their password
+  const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState('');
+
+  // Device Signature & Trusted Device Storage
+  const getOrCreateDeviceToken = () => {
+    let token = localStorage.getItem('kaen_device_token');
+    if (!token) {
+      token = 'dev_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      localStorage.setItem('kaen_device_token', token);
+    }
+    return token;
+  };
+
+  const detectDevice = () => {
+    const ua = navigator.userAgent;
+    if (/tablet|ipad|playbook|silk/i.test(ua)) return "Tablet";
+    if (/mobile|iphone|ipod|android/i.test(ua)) return "Celular";
+    return "Computador Desktop";
+  };
+
+  const getDeviceLabel = () => {
+    const type = detectDevice();
+    const ua = navigator.userAgent;
+    let os = "Navegador";
+    if (/windows/i.test(ua)) os = "Windows";
+    else if (/macintosh|mac os x/i.test(ua)) os = "macOS";
+    else if (/android/i.test(ua)) os = "Android";
+    else if (/iphone|ipad/i.test(ua)) os = "iOS";
+    else if (/linux/i.test(ua)) os = "Linux";
+    return `${type} (${os})`;
+  };
+
+  // Check if current device is already an authorized saved device
+  const [trustedDevice, setTrustedDevice] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem('kaen_trusted_device');
+      const token = localStorage.getItem('kaen_device_token');
+      if (raw && token) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.deviceId === token) {
+          return parsed;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [showDirectAccess, setShowDirectAccess] = useState(() => {
+    try {
+      const raw = localStorage.getItem('kaen_trusted_device');
+      const token = localStorage.getItem('kaen_device_token');
+      if (raw && token) {
+        const parsed = JSON.parse(raw);
+        return parsed && parsed.deviceId === token;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
   
   // Loaded Users list
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -142,13 +208,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       syncAndLoadUsers();
     }
   }, [tenant]);
-
-  const detectDevice = () => {
-    const ua = navigator.userAgent;
-    if (/tablet|ipad|playbook|silk/i.test(ua)) return "Tablet";
-    if (/mobile|iphone|ipod|android/i.test(ua)) return "Celular";
-    return "Computador Desktop";
-  };
 
   const handleCreateRoomSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,6 +308,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       return;
     }
 
+    if (!password || !password.trim()) {
+      setError('SENHA OBRIGATÓRIA: Digite a sua chave/senha pessoal para autenticar.');
+      setIsLoggingIn(false);
+      return;
+    }
+
     // Default match checks
     const reqPassword = checkUser.password || (checkUser.username === 'rafael' ? 'enzo1234' : 'mec1234');
 
@@ -256,10 +321,33 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       // 1. Log access attempt in storage logs
       const timestamp = new Date().toISOString();
       const clientIp = "192.168.1." + Math.floor(Math.random() * 200 + 10);
-      const activeDeviceName = detectDevice() + " (" + (navigator.platform || "ChromeOS") + ")";
+      const activeDeviceName = getDeviceLabel();
+      const currentDevToken = getOrCreateDeviceToken();
 
-      // Update users last login
-      const updatedUsers = users.map(u => u.id === checkUser.id ? { ...u, lastLogin: timestamp } : u);
+      // If user chose to remember/save this device:
+      if (rememberDevice) {
+        const deviceData = {
+          deviceId: currentDevToken,
+          username: tenant,
+          activeUser: checkUser.username,
+          realUsername: checkUser.name,
+          role: checkUser.role,
+          deviceName: activeDeviceName,
+          savedAt: timestamp
+        };
+        localStorage.setItem('kaen_trusted_device', JSON.stringify(deviceData));
+        setTrustedDevice(deviceData);
+      } else {
+        localStorage.removeItem('kaen_trusted_device');
+        setTrustedDevice(null);
+      }
+
+      // Update users last login & registered device info
+      const updatedUsers = users.map(u => u.id === checkUser.id ? { 
+        ...u, 
+        lastLogin: timestamp,
+        deviceRegistered: `${activeDeviceName}${rememberDevice ? ' [Confiável]' : ''}`
+      } : u);
       setUsers(updatedUsers);
       localStorage.setItem(`kaenpro_${tenant}_admin_users`, JSON.stringify(updatedUsers));
 
@@ -292,8 +380,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const newAudit = {
         id: `log-${Date.now()}`,
         user: checkUser.name,
-        device: detectDevice(),
-        action: `LOGIN EFETUADO NO TERMINAL DE SEGURANÇA (${checkUser.role})`,
+        device: activeDeviceName,
+        action: `LOGIN COM SENHA ${rememberDevice ? '[APARELHO SALVO]' : ''} (${checkUser.role})`,
         module: 'Sessão de Sistema',
         timestamp
       };
@@ -328,9 +416,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
       onLogin(tenant, checkUser.role, checkUser.name, checkUser.username);
     } else {
-      setError('CHAVE PRIVADA INCORRETA: ACESSO BLOQUEADO PELO NÚCLEO.');
+      setError('CHAVE PRIVADA INCORRETA: Acesso negado. A senha digitada não confere.');
       setIsLoggingIn(false);
     }
+  };
+
+  const handleQuickTrustedLogin = () => {
+    if (!trustedDevice) return;
+    setIsLoggingIn(true);
+    setTimeout(() => {
+      onLogin(
+        trustedDevice.username || tenant, 
+        trustedDevice.role, 
+        trustedDevice.realUsername || trustedDevice.activeUser, 
+        trustedDevice.activeUser
+      );
+    }, 400);
+  };
+
+  const handleForgetDevice = () => {
+    localStorage.removeItem('kaen_trusted_device');
+    setTrustedDevice(null);
+    setShowDirectAccess(false);
+    setPassword('');
+    setError('');
   };
 
   const selectedRecoveryRecord = users.find(u => u.username.toLowerCase() === recoveryUser.toLowerCase());
@@ -383,136 +492,252 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </div>
           )}
 
-          <form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[9px] sm:text-[10px] p-5 rounded-[1.5rem] text-center font-black uppercase tracking-wider animate-pulse italic">
-                {error}
+          {trustedDevice && showDirectAccess ? (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              {/* Device Authorized Banner */}
+              <div className="bg-emerald-500/10 border border-emerald-500/25 p-4 rounded-2xl flex items-center gap-3.5 text-left">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <span className="text-[8px] font-black uppercase tracking-[0.25em] text-emerald-400 block">DISPOSITIVO CONFIÁVEL REGISTRADO</span>
+                  <p className="text-xs text-zinc-200 font-bold mt-0.5">{trustedDevice.deviceName || getDeviceLabel()}</p>
+                </div>
               </div>
-            )}
 
-            {/* INTEGRATED SERVER KEY / WORKSHOP CODE */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center px-4">
-                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] block italic">CÓDIGO DA OFICINA</label>
+              {/* Saved Account Card */}
+              <div className="p-6 bg-zinc-950/90 border border-white/10 rounded-3xl text-left space-y-4 shadow-inner">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-[#FF2D55] text-white flex items-center justify-center text-lg font-black uppercase italic shadow-lg shadow-[#FF2D55]/25 shrink-0">
+                    {(trustedDevice.realUsername || trustedDevice.activeUser || 'K').slice(0, 2)}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500 block">Sessão Salva neste Aparelho</span>
+                    <h3 className="text-base font-black text-white uppercase italic truncate">{trustedDevice.realUsername || trustedDevice.activeUser}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 text-zinc-300 border border-white/10">
+                        {trustedDevice.role}
+                      </span>
+                      <span className="text-[8px] text-zinc-500 uppercase tracking-wider">
+                        Sala: {trustedDevice.username}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[9.5px] text-zinc-400 leading-relaxed pt-2 border-t border-white/5">
+                  Este aparelho já foi autenticado anteriormente com senha válida e está liberado para acesso imediato.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={() => setShowRoomCreator(true)}
-                  className="text-[#FF2D55] text-[9px] font-black uppercase tracking-widest hover:underline italic"
+                  onClick={handleQuickTrustedLogin}
+                  className="w-full bg-[#FF2D55] hover:bg-[#ff1744] py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.4em] text-white flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_15px_40px_rgba(255,45,85,0.35)] italic"
                 >
-                  + CRIAR NOVA SALA
+                  <span>ENTRAR NESTE DISPOSITIVO</span>
+                  <ArrowRight size={16} />
                 </button>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDirectAccess(false);
+                      setPassword('');
+                      setError('');
+                    }}
+                    className="py-3 px-3 bg-zinc-950 hover:bg-zinc-900 border border-white/5 hover:border-white/15 rounded-xl text-[8.5px] font-black uppercase tracking-wider text-zinc-400 hover:text-white transition-all text-center flex items-center justify-center gap-1.5"
+                  >
+                    <Lock size={12} />
+                    Entrar com Senha
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleForgetDevice}
+                    className="py-3 px-3 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 hover:border-red-500/40 rounded-xl text-[8.5px] font-black uppercase tracking-wider text-red-400 hover:text-red-300 transition-all text-center flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 size={12} />
+                    Esquecer Aparelho
+                  </button>
+                </div>
               </div>
-              <div className="relative">
+            </div>
+          ) : (
+            <form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
+              {/* Header security notice */}
+              {!trustedDevice ? (
+                <div className="bg-amber-500/10 border border-amber-500/25 p-3.5 rounded-2xl flex items-center gap-3 text-left">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                    <ShieldAlert size={18} />
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-amber-400 block">NOVO DISPOSITIVO DETECTADO</span>
+                    <p className="text-[9.5px] text-zinc-300 font-medium">Digite sua senha para autenticar e salvar o acesso neste aparelho.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowDirectAccess(true)}
+                    className="text-[9px] font-black text-[#FF2D55] uppercase tracking-widest hover:underline flex items-center gap-1.5 italic"
+                  >
+                    <ArrowLeft size={12} /> VOLTAR PARA ACESSO RÁPIDO
+                  </button>
+                  <span className="text-[8px] font-bold text-zinc-500 uppercase">{getDeviceLabel()}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[9px] sm:text-[10px] p-4 rounded-[1.5rem] text-center font-black uppercase tracking-wider animate-pulse italic">
+                  {error}
+                </div>
+              )}
+
+              {/* INTEGRATED SERVER KEY / WORKSHOP CODE */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-4">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] block italic">CÓDIGO DA OFICINA</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoomCreator(true)}
+                    className="text-[#FF2D55] text-[9px] font-black uppercase tracking-widest hover:underline italic"
+                  >
+                    + CRIAR NOVA SALA
+                  </button>
+                </div>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="EX: OFICINA-458"
+                    value={tenant} 
+                    onChange={(e) => setTenant(e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, ''))} 
+                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl px-12 py-4 text-white hover:border-[#FF2D55]/30 focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest text-center shadow-inner"
+                  />
+                  <Cloud size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
+                </div>
+                
+                {tenant !== "rafael" && (
+                  <div className="space-y-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block pl-4 italic text-left">SENHA DE ACESSO À OFICINA</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="SENHA DA OFICINA"
+                      value={roomPassword}
+                      onChange={(e) => setRoomPassword(e.target.value)}
+                      className="w-full bg-zinc-950/70 border border-white/10 rounded-2xl px-4 py-3.5 text-white focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest text-center shadow-inner"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Account Profile Quick Selector */}
+              <div className="space-y-3">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] ml-4 text-left block italic">SELECIONE SEU PERFIL</label>
+                <div className="grid grid-cols-3 gap-2 bg-zinc-950/80 p-1.5 border border-white/5 rounded-2xl">
+                  {[
+                    { username: 'rafael', label: 'Admin', role: 'Dono' },
+                    { username: 'janete', label: 'Recepção', role: 'Staff' },
+                    { username: 'eduardo', label: 'Mecânico', role: 'Oficina' },
+                  ].map(it => {
+                    const isSel = username.toLowerCase() === it.username;
+                    return (
+                      <button
+                        key={it.username}
+                        type="button"
+                        onClick={() => {
+                          setUsername(it.username);
+                          setPassword('');
+                          setError('');
+                        }}
+                        className={`py-3 rounded-xl transition-all duration-300 text-center flex flex-col items-center justify-center
+                        ${isSel ? 'bg-white text-black font-black font-semibold' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                      >
+                        <span className="text-[10px] uppercase font-black tracking-tight leading-none">{it.label}</span>
+                        <span className="text-[7px] text-zinc-400 mt-0.5 tracking-tight font-light">{it.role}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] ml-4 text-left block italic">CÓDIGO DE USUÁRIO</label>
                 <input 
                   type="text" 
                   required 
-                  placeholder="EX: OFICINA-458"
-                  value={tenant} 
-                  onChange={(e) => setTenant(e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, ''))} 
-                  className="w-full bg-zinc-950 border border-white/10 rounded-2xl px-12 py-4 text-white hover:border-[#FF2D55]/30 focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest text-center shadow-inner"
+                  placeholder="NOME DO COLABORADOR"
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())} 
+                  className="w-full bg-zinc-950 border border-white/5 rounded-2xl px-6 py-4 text-white text-center focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest shadow-inner"
                 />
-                <Cloud size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
               </div>
-              
-              {tenant !== "rafael" && (
-                <div className="space-y-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block pl-4 italic text-left">SENHA DE ACESSO À OFICINA</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="SENHA DA OFICINA"
-                    value={roomPassword}
-                    onChange={(e) => setRoomPassword(e.target.value)}
-                    className="w-full bg-zinc-950/70 border border-white/10 rounded-2xl px-4 py-3.5 text-white focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest text-center shadow-inner"
-                  />
+
+              {/* PASSWORD FIELD - ALWAYS REQUIRED */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-4">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] italic">SENHA DE ACESSO</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowRecoveryModal(true)} 
+                    className="text-[#FF2D55] text-[9px] font-bold uppercase tracking-widest italic hover:underline"
+                  >
+                    RECUPERAR SENHA
+                  </button>
                 </div>
-              )}
-              
-              <p className="text-[8px] text-zinc-600 uppercase tracking-widest text-center select-none leading-relaxed px-2">
-                Qualquer celular, tablet ou computador com o mesmo código acessa a mesma oficina em tempo real!
-              </p>
-            </div>
-
-            {/* Account Profile Quick Selector */}
-            <div className="space-y-3">
-              <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] ml-4 text-left block italic">SELECIONE SEU PERFIL</label>
-              <div className="grid grid-cols-3 gap-2 bg-zinc-950/80 p-1.5 border border-white/5 rounded-2xl">
-                {[
-                  { username: 'rafael', label: 'Admin', role: 'Dono' },
-                  { username: 'janete', label: 'Recepção', role: 'Staff' },
-                  { username: 'eduardo', label: 'Mecânico', role: 'Oficina' },
-                ].map(it => {
-                  const isSel = username.toLowerCase() === it.username;
-                  return (
-                    <button
-                      key={it.username}
-                      type="button"
-                      onClick={() => {
-                        setUsername(it.username);
-                        const match = users.find(u => u.username === it.username);
-                        setPassword(match?.password || (it.username === 'rafael' ? 'enzo1234' : it.username === 'janete' ? 'rec1234' : 'mec1234'));
-                      }}
-                      className={`py-3 rounded-xl transition-all duration-300 text-center flex flex-col items-center justify-center
-                      ${isSel ? 'bg-white text-black font-black font-semibold' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
-                    >
-                      <span className="text-[10px] uppercase font-black tracking-tight leading-none">{it.label}</span>
-                      <span className="text-[7px] text-zinc-400 mt-0.5 tracking-tight font-light">{it.role}</span>
-                    </button>
-                  );
-                })}
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    placeholder="DIGITE A SUA SENHA"
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl px-6 py-4 text-white text-center focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest shadow-inner"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)} 
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
-              <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] ml-4 text-left block italic">CÓDIGO DE USUÁRIO</label>
-              <input 
-                type="text" 
-                required 
-                placeholder="NOME DO COLABORADOR"
-                value={username} 
-                onChange={(e) => setUsername(e.target.value.toLowerCase())} 
-                className="w-full bg-zinc-950 border border-white/5 rounded-2xl px-6 py-4 text-white text-center focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest shadow-inner"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center px-4">
-                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] italic">CHAVE PRIVADA (SENHA)</label>
-                <button 
-                  type="button" 
-                  onClick={() => setShowRecoveryModal(true)} 
-                  className="text-[#FF2D55] text-[9px] font-bold uppercase tracking-widest italic hover:underline"
-                >
-                  RECUPERAR ACESSO
-                </button>
+              {/* REMEMBER DEVICE CHECKBOX */}
+              <div 
+                onClick={() => setRememberDevice(!rememberDevice)}
+                className="flex items-start gap-3 p-3.5 bg-zinc-950/70 border border-white/5 hover:border-white/15 rounded-2xl cursor-pointer transition-all select-none text-left"
+              >
+                <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors mt-0.5
+                  ${rememberDevice ? 'bg-[#FF2D55] border-[#FF2D55] text-white' : 'bg-black border-white/20'}`}>
+                  {rememberDevice && <CheckCircle2 size={14} />}
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-[9.5px] font-black uppercase tracking-wider text-zinc-200">
+                    Lembrar e salvar este dispositivo
+                  </p>
+                  <p className="text-[8px] text-zinc-500 leading-tight">
+                    Dispositivos salvos permanecem autorizados. Dispositivos novos ou desconhecidos sempre exigirão a senha.
+                  </p>
+                </div>
               </div>
-              <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  placeholder="DIGITE A CHAVE PRIVADA"
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  className="w-full bg-zinc-950 border border-white/5 rounded-2xl px-6 py-4 text-white text-center focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest shadow-inner"
-                />
-                <button 
-                  type="button" 
-                  onClick={() => setShowPassword(!showPassword)} 
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
 
-            <button 
-              type="submit" 
-              className="w-full bg-[#FF2D55] py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.5em] text-white flex items-center justify-center gap-4 active:scale-95 transition-all shadow-[0_15px_40px_rgba(255,45,85,0.3)] italic"
-            >
-              <span>EFETUAR AUTENTICAÇÃO</span>
-              <Cloud size={16} />
-            </button>
-          </form>
+              <button 
+                type="submit" 
+                className="w-full bg-[#FF2D55] hover:bg-[#ff1744] py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.4em] text-white flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_15px_40px_rgba(255,45,85,0.35)] italic"
+              >
+                <Lock size={16} />
+                <span>EFETUAR AUTENTICAÇÃO</span>
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

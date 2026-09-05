@@ -19,11 +19,17 @@ const Employees: React.FC<EmployeesProps> = ({ session, syncData }) => {
     shift: 'Diurno',
   });
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const saved = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_employees`) || '[]');
       setStaff(saved);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleSave = async () => {

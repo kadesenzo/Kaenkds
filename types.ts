@@ -1,5 +1,14 @@
 
 export enum OSStatus {
+  AGUARDANDO_DIAGNOSTICO = 'Aguardando diagnóstico',
+  EM_DIAGNOSTICO = 'Em diagnóstico',
+  ORCAMENTO_ENVIADO = 'Orçamento enviado',
+  AGUARDANDO_APROVACAO = 'Aguardando aprovação',
+  EM_SERVICO = 'Em serviço',
+  FINALIZACAO = 'Finalização',
+  PRONTO = 'Pronto',
+  ENTREGUE = 'Entregue',
+  // Legado para compatibilidade
   ORCAMENTO = 'Orçamento',
   EM_ANDAMENTO = 'Em Execução',
   FINALIZADO = 'Finalizado',
@@ -47,7 +56,7 @@ export interface UserSession {
   username: string;
   activeUser: string;
   realUsername: string;
-  role: 'Dono' | 'Funcionário' | 'Recepção';
+  role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque';
   lastSync: string;
 }
 
@@ -65,6 +74,9 @@ export interface Part {
   id: string;
   name: string;
   sku: string;
+  brand?: string;
+  supplier?: string;
+  category?: string;
   costPrice: number;
   salePrice: number;
   stock: number;
@@ -76,6 +88,7 @@ export interface Client {
   name: string;
   phone: string;
   document: string;
+  address?: string;
   observations: string;
   createdAt: string;
 }
@@ -88,6 +101,9 @@ export interface Vehicle {
   year: string;
   plate: string;
   km: number;
+  engine?: string;
+  fuel?: string;
+  color?: string;
   observations?: string;
 }
 
@@ -97,6 +113,34 @@ export interface OSItem {
   quantity: number;
   unitPrice: number;
   type: 'PART' | 'SERVICE';
+}
+
+export interface ProofPhoto {
+  id: string;
+  type: 'BEFORE' | 'DURING' | 'AFTER' | 'ENTRY' | 'DAMAGE';
+  label: string;
+  url: string;
+  timestamp: string;
+}
+
+export interface VehicleChecklist {
+  fuelLevel: string;
+  damages: string[];
+  items: Record<string, boolean>;
+  observations: string;
+  mechanicName?: string;
+  inspectionDate?: string;
+  testDrivePassed?: boolean;
+  exitChecklist?: {
+    toolsChecked: boolean;
+    interiorClean: boolean;
+    exteriorClean: boolean;
+    kmChecked: boolean;
+    finalTestPassed: boolean;
+    finalPhotosDone: boolean;
+  };
+  photos?: { label: string; url: string }[];
+  proofPhotos?: ProofPhoto[];
 }
 
 export interface ServiceOrder {
@@ -119,22 +163,25 @@ export interface ServiceOrder {
   paymentMethod?: PaymentMethod;
   observations?: string;
   dueDate?: string;
+  mechanicResponsible?: string;
+  budgetApproved?: boolean;
+  approvedAt?: string;
+  readyNotified?: boolean;
+  postSalesHistory?: {
+    day1Sent?: boolean;
+    day7Sent?: boolean;
+    day30Sent?: boolean;
+    nextReviewDate?: string;
+  };
   billingHistory?: (
     | { date: string; amount: number; method: string }
     | { date: string; user: string; level: 'mild' | 'formal' | 'final' }
   )[];
   checklist?: VehicleChecklist;
   photos?: { label: string; url: string }[];
+  proofPhotos?: ProofPhoto[];
   createdAt: string;
   updatedAt: string;
-}
-
-export interface VehicleChecklist {
-  fuelLevel: string;
-  damages: string[];
-  items: Record<string, boolean>;
-  observations: string;
-  photos?: { label: string; url: string }[];
 }
 
 export interface Appointment {

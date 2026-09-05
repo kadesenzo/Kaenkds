@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, OSItem, ServiceOrder, OSStatus, PaymentStatus, VehicleChecklist, UserSession } from '../types';
+import AntesEDepoisModal from '../components/AntesEDepoisModal';
 
 interface MechanicTerminalProps {
   session?: UserSession;
@@ -40,6 +41,8 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
   
   const [search, setSearch] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [activeVehicleOrder, setActiveVehicleOrder] = useState<ServiceOrder | null>(null);
+  const [showAntesDepoisModal, setShowAntesDepoisModal] = useState(false);
   
   const [serviceDescription, setServiceDescription] = useState('');
   const [items, setItems] = useState<OSItem[]>([]);
@@ -197,6 +200,7 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
     if (session) {
       const savedOrders: ServiceOrder[] = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
       const activeOrderForVehicle = savedOrders.find(o => o.vehicleId === v.id && o.status !== OSStatus.FINALIZADO && o.status !== OSStatus.CANCELADO);
+      setActiveVehicleOrder(activeOrderForVehicle || null);
       if (activeOrderForVehicle && activeOrderForVehicle.checklist) {
         setChecklist({
           fuelLevel: activeOrderForVehicle.checklist.fuelLevel || '1/2',
@@ -547,6 +551,17 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
                     />
                   </div>
                 </div>
+
+                {activeVehicleOrder && (
+                  <button 
+                    onClick={() => setShowAntesDepoisModal(true)}
+                    type="button"
+                    className="w-full bg-zinc-950 border border-zinc-800 hover:border-[#E11D48]/50 py-5 rounded-[2rem] font-black uppercase text-xs tracking-wider flex items-center justify-center gap-3 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                  >
+                    <Camera size={18} className="text-[#E11D48]" /> 
+                    <span>Vistoria Técnica: Ver Fotos do Antes & Bater Fotos do Depois</span>
+                  </button>
+                )}
                 
                 <button 
                   onClick={handleFinalizeService} 
@@ -914,6 +929,16 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
             </div>
           </div>
         </div>
+      )}
+      {/* Modal Antes e Depois do Reparo */}
+      {showAntesDepoisModal && activeVehicleOrder && (
+        <AntesEDepoisModal
+          isOpen={showAntesDepoisModal}
+          onClose={() => setShowAntesDepoisModal(false)}
+          os={activeVehicleOrder}
+          session={session}
+          syncData={syncData}
+        />
       )}
     </div>
   );

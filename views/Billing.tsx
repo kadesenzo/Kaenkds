@@ -22,7 +22,7 @@ const Billing: React.FC<{ session?: UserSession; syncData?: (key: string, data: 
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [billingLevel, setBillingLevel] = useState<'mild' | 'formal' | 'final'>('mild');
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
       const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
@@ -45,6 +45,12 @@ const Billing: React.FC<{ session?: UserSession; syncData?: (key: string, data: 
       setOrders(checkedOrders);
       setClients(savedClients);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleMarkAsPaid = async (id: string) => {

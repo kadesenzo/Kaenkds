@@ -18,6 +18,7 @@ import MechanicTerminal from './views/MechanicTerminal';
 import ReceptionTerminal from './views/ReceptionTerminal';
 import AdminPanel from './views/AdminPanel';
 import AiAssistant from './views/AiAssistant';
+import { ProjectDocument } from './views/ProjectDocument';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
@@ -27,16 +28,39 @@ const App: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.SYNCED);
   const [workspaceMode, setWorkspaceMode] = useState<'PRINCIPAL' | 'MECANICO' | 'RECEPCAO' | 'ADMIN'>('PRINCIPAL');
 
-  // Load session from sessionStorage
+  // Load session from sessionStorage OR recognized trusted device
   useEffect(() => {
     const savedSession = sessionStorage.getItem('kaen_session');
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
         setSession(parsed);
+        return;
       } catch (e) {
         sessionStorage.removeItem('kaen_session');
       }
+    }
+
+    // Check if this physical device was previously authorized and remembered
+    try {
+      const trustedRaw = localStorage.getItem('kaen_trusted_device');
+      const deviceToken = localStorage.getItem('kaen_device_token');
+      if (trustedRaw && deviceToken) {
+        const trusted = JSON.parse(trustedRaw);
+        if (trusted && trusted.deviceId === deviceToken && trusted.username && trusted.role) {
+          const restoredSession: UserSession = {
+            username: trusted.username,
+            activeUser: trusted.activeUser || trusted.username,
+            realUsername: trusted.realUsername || trusted.activeUser || trusted.username,
+            role: trusted.role,
+            lastSync: new Date().toISOString()
+          };
+          setSession(restoredSession);
+          sessionStorage.setItem('kaen_session', JSON.stringify(restoredSession));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not restore trusted device session", e);
     }
   }, []);
 
@@ -217,11 +241,14 @@ const App: React.FC = () => {
     performCloudSync('Full Fetch');
   };
 
-  const handleLogout = () => {
+  const handleLogout = (forgetDevice: boolean = false) => {
     setSession(null);
     setWorkspaceMode('PRINCIPAL');
     sessionStorage.removeItem('kaen_session');
     sessionStorage.removeItem('kaen_admin_unlocked');
+    if (forgetDevice) {
+      localStorage.removeItem('kaen_trusted_device');
+    }
   };
 
   const syncData = async (key: string, data: any) => {
@@ -333,6 +360,7 @@ const App: React.FC = () => {
         <Route path="/vehicles/:id" element={<PrivateLayout><VehicleDetails /></PrivateLayout>} />
         <Route path="/employees" element={<PrivateLayout><Employees /></PrivateLayout>} />
         <Route path="/ai-marketing" element={<PrivateLayout><AiAssistant /></PrivateLayout>} />
+        <Route path="/project-dossier" element={<PrivateLayout><ProjectDocument session={session} syncData={syncData} /></PrivateLayout>} />
         <Route path="/terminal" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

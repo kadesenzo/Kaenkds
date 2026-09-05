@@ -2,18 +2,20 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, Trash2, Wrench, ChevronLeft, X,
-  User, Search, Loader2, Check, ImageIcon, Car, Info, Download, Phone, Package
+  User, Search, Loader2, Check, ImageIcon, Car, Info, Download, Phone, Package, Camera, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, OSItem, OSStatus, ServiceOrder, PaymentStatus, UserSession, Part } from '../types';
 import html2canvas from 'html2canvas';
 import Invoice from '../components/Invoice';
+import PatioCheckinModal from '../components/PatioCheckinModal';
 
 const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ session, syncData }) => {
   const navigate = useNavigate();
   const previewRef = useRef<HTMLDivElement>(null);
   
   const [step, setStep] = useState<'CLIENTE' | 'VEICULO' | 'ITENS' | 'FINAL'>('CLIENTE');
+  const [showPatioModal, setShowPatioModal] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
@@ -37,7 +39,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
   const [finalOs, setFinalOs] = useState<ServiceOrder | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
       const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
@@ -46,6 +48,12 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
       setVehicles(savedVehicles);
       setParts(savedParts);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const totalValue = useMemo(() => {
@@ -212,7 +220,36 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
       </div>
       <div className="flex-1 w-full max-w-4xl p-6 md:p-12 space-y-12 pb-40 flex flex-col items-center">
         {step === 'CLIENTE' && (
-          <div className="w-full max-w-2xl space-y-10 animate-in slide-in-from-bottom-6 duration-700 flex flex-col items-center">
+          <div className="w-full max-w-2xl space-y-8 animate-in slide-in-from-bottom-6 duration-700 flex flex-col items-center">
+            
+            {/* Quick Patio Check-in Trigger */}
+            <button
+              onClick={() => setShowPatioModal(true)}
+              className="w-full p-6 bg-gradient-to-r from-zinc-900 via-black to-zinc-900 border border-[#FF2D55]/30 hover:border-[#FF2D55] rounded-[2rem] flex items-center justify-between group shadow-2xl transition-all active:scale-95 cursor-pointer"
+            >
+              <div className="flex items-center gap-4 text-left">
+                <div className="w-12 h-12 rounded-2xl bg-[#FF2D55] text-white flex items-center justify-center shadow-lg shadow-[#FF2D55]/30 group-hover:scale-110 transition-transform">
+                  <Camera size={22} />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-[0.25em] text-[#FF2D55] block">NOVO • CHECK-IN DE PÁTIO</span>
+                  <h3 className="text-sm font-black uppercase italic tracking-wider text-white">
+                    Foto da Placa & Vistoria Express
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Identifique o carro na hora e anexe fotos antes da nota</p>
+                </div>
+              </div>
+              <div className="p-3 bg-white/5 rounded-xl text-zinc-400 group-hover:text-white transition-colors">
+                <Sparkles size={18} className="text-[#FF2D55]" />
+              </div>
+            </button>
+
+            <div className="w-full flex items-center gap-4 my-2">
+              <div className="h-[1px] flex-1 bg-white/5"></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">OU PREENCHA MANUALMENTE</span>
+              <div className="h-[1px] flex-1 bg-white/5"></div>
+            </div>
+
             <h1 className="text-5xl font-black italic uppercase tracking-tighter">CLIENTE</h1>
             
             {!showQuickClient ? (
@@ -388,6 +425,19 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
           </div>
         )}
       </div>
+
+      {showPatioModal && (
+        <PatioCheckinModal
+          isOpen={showPatioModal}
+          onClose={() => setShowPatioModal(false)}
+          session={session}
+          syncData={syncData}
+          onSuccess={(newOs) => {
+            setShowPatioModal(false);
+            navigate('/orders');
+          }}
+        />
+      )}
     </div>
   );
 };

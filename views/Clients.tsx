@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, ServiceOrder, UserSession } from '../types';
 
 interface ClientsProps {
-  role: 'Dono' | 'Funcionário' | 'Recepção';
+  role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
   session?: UserSession;
   syncData?: (key: string, data: any) => Promise<void>;
 }
@@ -29,11 +29,17 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
     km: ''
   });
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const saved = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
       setClients(saved);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleSave = async () => {

@@ -1197,7 +1197,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                               <span className="text-zinc-650">•</span>
                               <span className="text-zinc-500">Cargo: <strong className="text-zinc-400 font-extrabold">{u.role}</strong></span>
                               <span className="text-zinc-650">•</span>
-                              <span className="text-zinc-500">Único aparelho: <strong className="text-zinc-500">{u.deviceRegistered}</strong></span>
+                              <span className="text-zinc-500">Dispositivo Salvo: <strong className={u.deviceRegistered?.includes('[Confiável]') ? 'text-emerald-400 font-bold' : 'text-zinc-400'}>{u.deviceRegistered || 'Nenhum'}</strong></span>
                             </div>
                           </div>
                         </div>
@@ -1209,6 +1209,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                             {u.status}
                           </span>
                           
+                          <button
+                            onClick={() => {
+                              const confirmReset = window.confirm(`Desvincular aparelhos de ${u.name}? No próximo acesso deste colaborador, a senha será exigida obrigatoriamente.`);
+                              if (confirmReset) {
+                                const updated = users.map(user => user.id === u.id ? { ...user, deviceRegistered: 'Nenhum dispositivo salvo' } : user);
+                                setUsers(updated);
+                                updateEntity('admin_users', updated);
+                              }
+                            }}
+                            className="p-3 bg-zinc-900 hover:bg-amber-500/10 text-zinc-500 hover:text-amber-400 border border-white/5 hover:border-amber-500/20 rounded-xl transition-all"
+                            title="Desvincular Dispositivos Salvos (Exige senha no próximo login)"
+                          >
+                            <Smartphone size={14} />
+                          </button>
+
                           {!isSelf && (
                             <>
                               <button

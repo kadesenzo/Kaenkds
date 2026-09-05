@@ -2,10 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, CheckCircle2, AlertTriangle, FileText, Printer, 
   Send, DollarSign, Wrench, Search, ChevronRight, 
-  RefreshCcw, User, Check, Play, Edit2, Badge, X 
+  RefreshCcw, User, Check, Play, Edit2, Badge, X, Camera
 } from 'lucide-react';
 import { ServiceOrder, OSStatus, PaymentStatus, UserSession, Part, Client } from '../types';
 import Invoice from '../components/Invoice';
+import PatioCheckinModal from '../components/PatioCheckinModal';
+import AntesEDepoisModal from '../components/AntesEDepoisModal';
 
 interface ReceptionTerminalProps {
   session?: UserSession;
@@ -20,6 +22,8 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
+  const [showPatioModal, setShowPatioModal] = useState(false);
+  const [selectedAntesDepoisOs, setSelectedAntesDepoisOs] = useState<ServiceOrder | null>(null);
 
   // Load state and listen to local updates in real-time
   useEffect(() => {
@@ -203,7 +207,15 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                <p className="text-zinc-500 font-bold uppercase tracking-[0.3em] text-[10px] italic text-left">Front-desk operacional e fluxo financeiro em tempo real</p>
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setShowPatioModal(true)}
+                className="px-6 py-4 bg-[#FF2D55] hover:bg-[#ff1744] text-white rounded-3xl font-black uppercase text-xs tracking-widest flex items-center gap-2.5 shadow-xl shadow-[#FF2D55]/30 active:scale-95 transition-all cursor-pointer border border-[#FF2D55]"
+              >
+                <Camera size={18} />
+                <span>Check-in de Pátio (Foto & Vistoria)</span>
+              </button>
+
               <div className="px-6 py-4 bg-zinc-950/80 border border-white/5 rounded-3xl text-left">
                 <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Aguardando Recepção</span>
                 <span className="text-xl font-black text-emerald-500 animate-pulse">{waitingReceptionCount} Serviços</span>
@@ -391,15 +403,24 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                 <div className="pt-4 grid grid-cols-2 gap-4">
                   <button 
                     onClick={() => setShowInvoiceModal(true)}
-                    className="py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-95 italic"
+                    className="py-5 bg-white text-black rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-zinc-200 transition-all active:scale-95 italic cursor-pointer"
                   >
                     <FileText size={16} /> Emitir Nota
                   </button>
                   <button 
                     onClick={() => handleFinalizeService(selectedOrder)}
-                    className="py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 italic"
+                    className="py-5 bg-emerald-500 text-black rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-95 italic cursor-pointer"
                   >
                     <CheckCircle2 size={16} /> Finalizar OS
+                  </button>
+
+                  {/* Vistoria Antes e Depois button */}
+                  <button
+                    onClick={() => setSelectedAntesDepoisOs(selectedOrder)}
+                    className="col-span-2 py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-white/10 hover:border-[#FF2D55]/50 transition-all active:scale-95 italic cursor-pointer"
+                  >
+                    <Camera size={15} className="text-[#FF2D55]" />
+                    <span>Vistoria Fotográfica: Fotos Antes & Depois</span>
                   </button>
                 </div>
               </div>
@@ -510,6 +531,32 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
             </div>
           </div>
         </div>
+      )}
+
+      {/* Patio Check-in Modal */}
+      {showPatioModal && (
+        <PatioCheckinModal
+          isOpen={showPatioModal}
+          onClose={() => setShowPatioModal(false)}
+          session={session}
+          syncData={syncData}
+          onSuccess={(newOs) => {
+            setShowPatioModal(false);
+            setOrders(prev => [newOs, ...prev]);
+            setSelectedOrder(newOs);
+          }}
+        />
+      )}
+
+      {/* Antes e Depois Modal */}
+      {selectedAntesDepoisOs && (
+        <AntesEDepoisModal
+          isOpen={!!selectedAntesDepoisOs}
+          onClose={() => setSelectedAntesDepoisOs(null)}
+          os={selectedAntesDepoisOs}
+          session={session}
+          syncData={syncData}
+        />
       )}
 
     </div>

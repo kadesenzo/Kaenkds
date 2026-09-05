@@ -3,11 +3,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Car, PlusSquare, FileText, Package, UserCheck,
-  Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles
+  Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles,
+  BookOpen
 } from 'lucide-react';
 
 interface SidebarProps {
-  role: 'Dono' | 'Funcionário' | 'Recepção';
+  role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -25,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
     ]},
     { category: 'CRM COM IA', items: [
       { name: 'Notificações IA', icon: Sparkles, path: '/ai-marketing', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Dossiê do Projeto (PDF)', icon: BookOpen, path: '/project-dossier', roles: ['Dono', 'Recepção', 'Funcionário'] },
     ]},
     { category: 'FINANCEIRO', items: [
       { name: 'Fluxo de Caixa', icon: PieChart, path: '/financial', roles: ['Dono'] },

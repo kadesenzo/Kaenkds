@@ -2,18 +2,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Trash2, X, Eye, 
-  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car
+  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car, Camera
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ServiceOrder, UserSession, OSStatus, PaymentStatus } from '../types';
 import html2canvas from 'html2canvas';
 import Invoice from '../components/Invoice';
+import AntesEDepoisModal from '../components/AntesEDepoisModal';
 
 const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ role = 'Dono', session, syncData }) => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [antesDepoisOs, setAntesDepoisOs] = useState<ServiceOrder | null>(null);
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,6 +143,16 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                  <p className="text-sm font-semibold text-zinc-400 tracking-tight">R$ {os.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               </div>
               <div className="flex gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAntesDepoisOs(os);
+                  }}
+                  className="p-4 bg-white/5 text-zinc-400 hover:text-emerald-400 rounded-2xl border border-white/10 hover:border-emerald-500/30 transition-all shadow-xl active:scale-90 cursor-pointer"
+                  title="Vistoria e Fotos Antes & Depois"
+                >
+                  <Camera size={20}/>
+                </button>
                 <button onClick={() => setSelectedOrder(os)} className="p-4 bg-white/5 text-[#FF2D55] rounded-2xl border border-white/10 hover:bg-[#FF2D55] hover:text-white transition-all shadow-xl active:scale-90"><Eye size={20}/></button>
                 {role === 'Dono' && <button onClick={() => handleDelete(os.id)} className="p-4 bg-white/5 text-zinc-650 hover:text-[#FF2D55] rounded-2xl border border-white/10 transition-all active:scale-90"><Trash2 size={20}/></button>}
               </div>
@@ -163,6 +175,12 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
              </div>
 
              <div className="w-full max-w-[500px] flex flex-col gap-4 px-4 pb-20">
+                <button 
+                  onClick={() => setAntesDepoisOs(selectedOrder)}
+                  className="w-full bg-[#FF2D55] text-white py-6 rounded-ios font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-4 shadow-2xl active:scale-95 italic transition-all border border-[#FF2D55] cursor-pointer"
+                >
+                  <Camera size={22}/> VISTORIA FOTOGRÁFICA (ANTES & DEPOIS)
+                </button>
                 <button onClick={downloadImage} className="w-full bg-white text-black py-6 rounded-ios font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-4 shadow-2xl active:scale-95 italic transition-all">
                    <ImageIcon size={24}/> SALVAR IMAGEM (WHATSAPP)
                 </button>
@@ -172,6 +190,17 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
              </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Antes e Depois */}
+      {antesDepoisOs && (
+        <AntesEDepoisModal
+          isOpen={!!antesDepoisOs}
+          onClose={() => setAntesDepoisOs(null)}
+          os={antesDepoisOs}
+          session={session}
+          syncData={syncData}
+        />
       )}
     </div>
   );

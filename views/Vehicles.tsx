@@ -16,7 +16,7 @@ const Vehicles: React.FC<{ session?: UserSession; syncData?: (key: string, data:
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const userVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
       const userClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
@@ -25,6 +25,12 @@ const Vehicles: React.FC<{ session?: UserSession; syncData?: (key: string, data:
       setClients(userClients);
       setOrders(userOrders);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleDelete = async (id: string) => {

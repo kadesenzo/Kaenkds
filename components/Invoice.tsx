@@ -25,8 +25,8 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
             <Wrench size={36} />
           </div>
           <div className="inv-company-info">
-            <h1>Kaen Mecânica</h1>
-            <p>Rua Joaquim Marques Alves, 765 - São Paulo/SP</p>
+            <h1>Auto Mecânica Kaen</h1>
+            <p>Rua Joaquim Marques Alves, 765 - Registro/SP</p>
             <p>CNPJ: 00.000.000/0001-00 • (11) 98765-4321</p>
           </div>
         </div>
@@ -97,6 +97,33 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
         </table>
       </div>
 
+      {/* Vistoria Fotográfica: Fotos Antes & Depois anexadas à Nota */}
+      {os.proofPhotos && os.proofPhotos.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl border border-zinc-200 bg-zinc-50/70">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-[9px] font-black uppercase tracking-wider text-zinc-700">
+              Vistoria Técnica & Registros Fotográficos (Entrada / Conclusão)
+            </span>
+            <span className="text-[8px] font-bold text-zinc-500 uppercase">
+              {os.proofPhotos.length} Fotos Anexadas
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {os.proofPhotos.slice(0, 4).map((photo, i) => (
+              <div key={photo.id || i} className="border border-zinc-300 rounded-lg overflow-hidden bg-white">
+                <img src={photo.url} alt={photo.label} className="w-full h-16 object-cover" referrerPolicy="no-referrer" />
+                <div className="p-1 bg-zinc-100 text-center">
+                  <span className={`text-[7px] font-black uppercase px-1 py-0.2 rounded inline-block ${photo.type === 'AFTER' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                    {photo.type === 'AFTER' ? 'DEPOIS' : 'ANTES'}
+                  </span>
+                  <p className="text-[7px] text-zinc-600 truncate mt-0.5">{photo.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="inv-footer">
         <div className="flex flex-col gap-8">
@@ -114,7 +141,7 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
       </div>
 
       <div className="absolute bottom-8 left-0 w-full text-center opacity-30">
-        <p className="text-[9px] font-black uppercase tracking-[0.6em]">Kaen Mecânica • Excelência em Performance • São Paulo/SP</p>
+        <p className="text-[9px] font-black uppercase tracking-[0.6em]">Auto Mecânica Kaen • Excelência em Performance • Registro/SP</p>
       </div>
     </div>
   );

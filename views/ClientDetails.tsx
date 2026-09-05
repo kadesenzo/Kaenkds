@@ -25,7 +25,7 @@ import {
 import { Client, Vehicle, ServiceOrder, UserSession } from '../types';
 
 interface ClientDetailsProps {
-  role: 'Dono' | 'Funcionário' | 'Recepção';
+  role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
   session?: UserSession;
   syncData?: (key: string, data: any) => Promise<void>;
 }
@@ -48,7 +48,7 @@ const ClientDetails: React.FC<ClientDetailsProps> = ({ role, session, syncData }
     km: ''
   });
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
       const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
@@ -63,6 +63,12 @@ const ClientDetails: React.FC<ClientDetailsProps> = ({ role, session, syncData }
         setOrders(clientOrders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       }
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [id, session]);
 
   const handleAddVehicle = async () => {

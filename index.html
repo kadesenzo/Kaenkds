@@ -4,18 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>KAEN - Performance & Engenharia Automotiva</title>
+    <title>Remix: KAEN - BEYOND LIMITS</title>
+    <meta name="description" content="Sistema de gestão automotiva de elite. Precisão e alta performance com a Auto Mecânica Kaen em Registro-SP.">
+    <meta property="og:title" content="Remix: KAEN - BEYOND LIMITS">
+    <meta property="og:description" content="Sistema de gestão automotiva de elite. Precisão e alta performance com a Auto Mecânica Kaen em Registro-SP.">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --brand-red: #FF2D55;
+            --brand-coral: #FF4D2D;
             --bg-main: #000000;
             --ios-radius: 3rem;
         }
         
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
             background-color: var(--bg-main);
             color: #ffffff;
             margin: 0;
@@ -23,14 +29,32 @@
             overflow-x: hidden;
         }
 
+        .font-display {
+            font-family: 'Outfit', sans-serif;
+        }
+
         #root { width: 100%; min-height: 100vh; display: flex; flex-direction: column; }
         .rounded-ios { border-radius: var(--ios-radius); }
         
         .glass-card {
-            background: rgba(15, 15, 17, 0.7);
+            background: rgba(15, 15, 17, 0.72);
             backdrop-filter: blur(40px) saturate(180%);
             -webkit-backdrop-filter: blur(40px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-pill {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(25px) saturate(160%);
+            -webkit-backdrop-filter: blur(25px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-nav {
+            background: rgba(12, 12, 14, 0.55);
+            backdrop-filter: blur(28px) saturate(180%);
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         /* --- NOTA FISCAL KAEN PROFISSIONAL ULTRA --- */

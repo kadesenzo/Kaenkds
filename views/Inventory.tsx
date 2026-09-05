@@ -32,11 +32,17 @@ const Inventory: React.FC<{ session?: UserSession; syncData?: (key: string, data
     costPrice: 0
   });
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const saved = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_parts`) || '[]');
       setParts(saved);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleSave = async () => {

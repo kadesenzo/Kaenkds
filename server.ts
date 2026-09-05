@@ -40,46 +40,36 @@ const CLOUD_DB_URL = `https://kvdb.io/${CLOUD_DB_ID}/kaen_database`;
 // Load database state helper
 async function loadCloudDb() {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
     const res = await fetch(`${CLOUD_DB_URL}?_t=${Date.now()}`, {
+      signal: controller.signal,
       headers: {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Expires": "0"
       }
     });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const text = await res.text();
       if (text && text.trim().startsWith("{")) {
-        dbCache = JSON.parse(text);
-        console.log("Database successfully synchronized from Cloud Storage.");
-        try {
-          fs.writeFileSync(DB_PATH, JSON.stringify(dbCache, null, 2), "utf-8");
-        } catch (e) {
-          // ignore write errors in read-only setups
+        const cloudData = JSON.parse(text);
+        if (cloudData && typeof cloudData === 'object') {
+          dbCache = { ...readDb(), ...cloudData };
+          try {
+            fs.writeFileSync(DB_PATH, JSON.stringify(dbCache, null, 2), "utf-8");
+          } catch (e) {
+            // ignore write errors in read-only setups
+          }
+          return dbCache;
         }
-        return dbCache;
       }
     }
   } catch (err) {
-    console.error("Failed to load database from cloud. Falling back to local:", err);
+    // Cloud sync fallback gracefully to local database
   }
-  
-  // Local fallback
-  try {
-    if (fs.existsSync(DB_PATH)) {
-      dbCache = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    } else {
-      const workspaceTemplate = path.join(process.cwd(), "kaen_db.json");
-      if (fs.existsSync(workspaceTemplate)) {
-        dbCache = JSON.parse(fs.readFileSync(workspaceTemplate, "utf-8"));
-      } else {
-        dbCache = {};
-      }
-    }
-  } catch (e) {
-    dbCache = {};
-  }
-  return dbCache;
+  return readDb();
 }
 
 // Start cloud sync background operation
@@ -119,9 +109,7 @@ function writeDb(data: any) {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify(data)
-  }).catch(err => {
-    console.error("Failed to persist database to cloud storage:", err);
-  });
+  }).catch(() => {});
 }
 
 // Presence Interfaces
@@ -181,10 +169,8 @@ function broadcastPresence(username: string) {
 }
 
 // REST endpoints for synchronization
-app.get("/api/sync/:username", async (req, res) => {
+app.get("/api/sync/:username", (req, res) => {
   const { username } = req.params;
-  // Always force load cloud DB to ensure synchronization between multiple devices/containers
-  await loadCloudDb();
   const db = readDb();
   const userPrefix = `kaenpro_${username}_`;
   const userData: Record<string, any> = {};

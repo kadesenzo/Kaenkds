@@ -36,13 +36,19 @@ const Calendar: React.FC<{ session?: UserSession; syncData?: (key: string, data:
     notes: ''
   });
 
-  useEffect(() => {
+  const loadData = () => {
     if (session) {
       const savedApps = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_appointments`) || '[]');
       const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
       setAppointments(savedApps);
       setClients(savedClients);
     }
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const dailyAppointments = useMemo(() => {
