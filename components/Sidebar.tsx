@@ -4,7 +4,8 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Car, PlusSquare, FileText, Package, UserCheck,
   Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles,
-  BookOpen
+  BookOpen, ClipboardCheck, Truck, BarChart3, Megaphone, Star, Repeat, MessageCircle,
+  Camera, Lock
 } from 'lucide-react';
 import KaenLogo from './KaenLogo';
 
@@ -18,26 +19,34 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
   const menuItems = [
     { category: 'OPERACIONAL', items: [
       { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['Dono', 'Funcionário', 'Recepção'] },
-      { name: 'Agenda Pro', icon: CalendarDays, path: '/calendar', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Agenda', icon: CalendarDays, path: '/calendar', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Ordens de Serviço', icon: Wrench, path: '/orders', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Checklists Pátio', icon: ClipboardCheck, path: '/checklists', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Terminal Mecânico', icon: Smartphone, path: '/terminal', roles: ['Dono', 'Funcionário'] },
+      { name: 'Nova OS / Entrada', icon: PlusSquare, path: '/orders/new', roles: ['Dono', 'Recepção', 'Funcionário'] },
     ]},
-    { category: 'VENDAS', items: [
-      { name: 'Emitir Nota', icon: PlusSquare, path: '/orders/new', roles: ['Dono', 'Recepção', 'Funcionário'] },
-      { name: 'Notas / OS', icon: FileText, path: '/orders', roles: ['Dono', 'Recepção', 'Funcionário'] },
-    ]},
-    { category: 'CRM COM IA', items: [
-      { name: 'Notificações IA', icon: Sparkles, path: '/ai-marketing', roles: ['Dono', 'Recepção', 'Funcionário'] },
-      { name: 'Dossiê do Projeto (PDF)', icon: BookOpen, path: '/project-dossier', roles: ['Dono', 'Recepção', 'Funcionário'] },
-    ]},
-    { category: 'FINANCEIRO', items: [
-      { name: 'Fluxo de Caixa', icon: PieChart, path: '/financial', roles: ['Dono'] },
-      { name: 'Cobranças', icon: DollarSign, path: '/billing', roles: ['Dono', 'Recepção'] },
-    ]},
-    { category: 'CADASTROS', items: [
+    { category: 'COMERCIAL & CRM', items: [
+      { name: 'Orçamentos & Aprovação', icon: DollarSign, path: '/budgets', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Clientes', icon: Users, path: '/clients', roles: ['Dono', 'Recepção'] },
       { name: 'Veículos', icon: Car, path: '/vehicles', roles: ['Dono', 'Recepção', 'Funcionário'] },
-      { name: 'Estoque', icon: Package, path: '/inventory', roles: ['Dono', 'Recepção'] },
+      { name: 'WhatsApp Hub', icon: MessageCircle, path: '/whatsapp', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Pós-Venda & Lembretes', icon: Repeat, path: '/after-sales', roles: ['Dono', 'Recepção'] },
+      { name: 'Avaliações Google', icon: Star, path: '/reviews', roles: ['Dono', 'Recepção'] },
+      { name: 'Marketing & Funil', icon: Megaphone, path: '/marketing', roles: ['Dono', 'Recepção'] },
+    ]},
+    { category: 'GESTÃO & FINANCEIRO', items: [
+      { name: 'Financeiro', icon: PieChart, path: '/financial', roles: ['Dono'] },
+      { name: 'Relatórios & Lucro', icon: BarChart3, path: '/reports', roles: ['Dono'] },
+      { name: 'Cobranças', icon: DollarSign, path: '/billing', roles: ['Dono', 'Recepção'] },
+      { name: 'Estoque de Peças', icon: Package, path: '/inventory', roles: ['Dono', 'Recepção'] },
+      { name: 'Fornecedores', icon: Truck, path: '/suppliers', roles: ['Dono', 'Recepção'] },
       { name: 'Equipe KAEN', icon: UserCheck, path: '/employees', roles: ['Dono'] },
+    ]},
+    { category: 'INTELIGÊNCIA & ARQUIVOS', items: [
+      { name: 'IA KAEN Assistente', icon: Sparkles, path: '/ai-marketing', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Central de Fotos', icon: Camera, path: '/gallery', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Dossiê do Sistema (PDF)', icon: BookOpen, path: '/project-dossier', roles: ['Dono', 'Recepção', 'Funcionário'] },
+      { name: 'Usuários & Permissões', icon: Lock, path: '/users', roles: ['Dono'] },
     ]},
   ];
 
@@ -100,11 +109,18 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
           })}
         </nav>
         
-        <div className="p-10 border-t border-white/5 bg-zinc-950/20">
-           <div className="flex items-center gap-4 text-zinc-700 hover:text-zinc-400 cursor-pointer transition-colors group">
+        <div className="p-8 border-t border-white/5 bg-zinc-950/20">
+           <NavLink 
+             to="/settings" 
+             onClick={onClose}
+             className={({ isActive }) => `
+               flex items-center gap-4 cursor-pointer transition-colors group
+               ${isActive ? 'text-[#FF2D55]' : 'text-zinc-500 hover:text-white'}
+             `}
+           >
               <Settings size={20} className="group-hover:rotate-45 transition-transform" />
-              <span className="text-[10px] font-black uppercase tracking-widest italic">Ajustes KAEN</span>
-           </div>
+              <span className="text-[10px] font-black uppercase tracking-widest italic">Ajustes & Configurações</span>
+           </NavLink>
         </div>
       </aside>
     </>

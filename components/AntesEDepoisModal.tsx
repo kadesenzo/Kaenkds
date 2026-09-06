@@ -38,16 +38,8 @@ export const AntesEDepoisModal: React.FC<AntesEDepoisModalProps> = ({
         timestamp: os.createdAt
       }));
     }
-    // Fallback initial sample photo so user immediately sees how it looks
-    return [
-      {
-        id: 'ph-sample-before-1',
-        type: 'BEFORE' as const,
-        label: 'Estado de Entrada: Farol / Frente do Veículo',
-        url: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&auto=format&fit=crop&q=80',
-        timestamp: os.createdAt
-      }
-    ];
+    // No photos registered yet: start completely clean
+    return [];
   });
 
   // State for adding a new "AFTER" photo
@@ -490,9 +482,38 @@ export const AntesEDepoisModal: React.FC<AntesEDepoisModalProps> = ({
                   type="text" 
                   value={newPhotoLabel}
                   onChange={(e) => setNewPhotoLabel(e.target.value)}
-                  placeholder={newPhotoType === 'AFTER' ? 'Ex: Farol novo instalado e funcionando' : 'Ex: Farol queimado na entrada'}
+                  placeholder={newPhotoType === 'AFTER' ? 'Ex: Peça nova original instalada e testada' : 'Ex: Peça desgastada / dano na chegada'}
                   className="w-full bg-black border border-white/10 rounded-xl p-3 text-xs text-white font-bold"
                 />
+                
+                {/* Sugestões Rápidas */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {(newPhotoType === 'AFTER' ? [
+                    'Peça Nova Instalada',
+                    'Freios e Pastilhas OK',
+                    'Suspensão Ajustada',
+                    'Óleo e Filtros Trocados',
+                    'Farol / Elétrica Testado',
+                    'Motor Limpo e Finalizado',
+                    'Teste de Rodagem Aprovado'
+                  ] : [
+                    'Peça Desgastada / Trincada',
+                    'Disco de Freio Danificado',
+                    'Vazamento Identificado',
+                    'Amassado / Arranhão Entrada',
+                    'Farol Apagado / Quebrado',
+                    'Pneu / Roda Avariado'
+                  ]).map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNewPhotoLabel(tag)}
+                      className="px-2.5 py-1 bg-zinc-900/80 hover:bg-zinc-800 border border-white/5 rounded-lg text-[8px] font-bold text-zinc-400 hover:text-white transition-colors"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Action Buttons */}

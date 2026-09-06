@@ -105,20 +105,24 @@ const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        <div 
-          className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-zinc-900/60 rounded-full border border-white/5"
-          title="Banco de Dados na Nuvem (Firebase Firestore) sincronizado em tempo real"
+        <button 
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('kaen_force_cloud_backup'));
+          }}
+          className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 bg-zinc-900/60 hover:bg-zinc-800 rounded-full border border-white/5 hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95"
+          title="Nuvem Firebase Firestore ativa. Clique para forçar backup instantâneo de todos os dados da oficina."
         >
           {syncStatus === SyncStatus.SYNCING ? (
             <RefreshCw size={11} className="text-[#FF2D55] animate-spin" />
           ) : (
-            <Cloud size={12} className="text-emerald-400 animate-pulse" />
+            <Cloud size={12} className="text-emerald-400 group-hover:scale-110 transition-transform" />
           )}
           <span className="text-[8px] font-black uppercase tracking-[0.15em] text-zinc-300 flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${syncStatus === SyncStatus.SYNCING ? 'bg-amber-400' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'}`}></span>
-            {syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Nuvem Conectada'}
+            <span className="hidden sm:inline">{syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Nuvem Conectada'}</span>
+            <span className="sm:hidden">{syncStatus === SyncStatus.SYNCING ? '...' : 'Nuvem'}</span>
           </span>
-        </div>
+        </button>
 
         <div className="flex items-center space-x-2 sm:space-x-4 bg-zinc-900/50 px-2 py-1.5 rounded-full border border-white/5 ml-auto sm:ml-0">
           <div className="text-right pl-3 hidden sm:block">

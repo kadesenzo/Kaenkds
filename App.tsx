@@ -19,15 +19,79 @@ import ReceptionTerminal from './views/ReceptionTerminal';
 import AdminPanel from './views/AdminPanel';
 import AiAssistant from './views/AiAssistant';
 import { ProjectDocument } from './views/ProjectDocument';
+import Budgets from './views/Budgets';
+import ChecklistsView from './views/ChecklistsView';
+import Suppliers from './views/Suppliers';
+import Reports from './views/Reports';
+import Marketing from './views/Marketing';
+import Reviews from './views/Reviews';
+import AfterSales from './views/AfterSales';
+import WhatsAppHub from './views/WhatsAppHub';
+import Gallery from './views/Gallery';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
-import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud } from './src/lib/firebase';
+import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './src/lib/firebase';
+
+// Global Cloud Sync Interceptor variables
+let isApplyingRemoteUpdate = false;
+const debounceTimers: Record<string, any> = {};
+
+function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
+  if (isApplyingRemoteUpdate) return;
+  if (!key.startsWith('kaenpro_') && !key.startsWith('kaen_')) return;
+
+  if (debounceTimers[key]) {
+    clearTimeout(debounceTimers[key]);
+  }
+
+  debounceTimers[key] = setTimeout(async () => {
+    try {
+      const parsed = JSON.parse(value);
+      const cleanKey = key.replace(/^kaenpro_[^_]+_/, '').replace(/^kaen_/, '');
+      const sharedKey = `kaenpro_rafael_${cleanKey}`;
+
+      // 1. Direct Firestore cloud persistence
+      await saveWorkshopFieldToCloud(sharedKey, parsed);
+      if (key !== sharedKey) {
+        await saveWorkshopFieldToCloud(key, parsed);
+      }
+
+      // 2. Server API sync & real-time broadcast
+      await fetch(`/api/sync/${tenant || 'rafael'}/${cleanKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed)
+      });
+    } catch (err) {
+      // ignore parse or network error
+    }
+  }, 350);
+}
 
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.SYNCED);
   const [workspaceMode, setWorkspaceMode] = useState<'PRINCIPAL' | 'MECANICO' | 'RECEPCAO' | 'ADMIN'>('PRINCIPAL');
+
+  // Install automatic cloud sync interceptor on localStorage.setItem
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !(window as any).__kaen_storage_interceptor_installed) {
+      (window as any).__kaen_storage_interceptor_installed = true;
+      const originalSetItem = localStorage.setItem.bind(localStorage);
+      (window as any).__kaen_original_setItem = originalSetItem;
+
+      localStorage.setItem = function(key: string, value: string) {
+        originalSetItem(key, value);
+        if (!isApplyingRemoteUpdate) {
+          const tenant = sessionStorage.getItem('kaen_session')
+            ? (JSON.parse(sessionStorage.getItem('kaen_session') || '{}').username || 'rafael')
+            : 'rafael';
+          triggerDebouncedCloudSync(key, value, tenant);
+        }
+      };
+    }
+  }, []);
 
   // Load session from sessionStorage OR recognized trusted device
   useEffect(() => {
@@ -84,17 +148,45 @@ const App: React.FC = () => {
 
     const tenant = session.username; // Kept as "rafael" for full backward compatibility with dynamic keys
 
-    // 1. Initial Fetch from Cloud DB to LocalStorage
+    // 1. Initial Fetch from Cloud DB & Firestore to LocalStorage
     const fetchInitialData = async () => {
       try {
         setSyncStatus(SyncStatus.SYNCING);
+
+        // Fetch directly from Firebase Firestore first for immediate source-of-truth access
+        try {
+          const cloudFirestoreData = await fetchAllWorkshopDataFromCloud();
+          if (cloudFirestoreData) {
+            isApplyingRemoteUpdate = true;
+            try {
+              for (const [k, v] of Object.entries(cloudFirestoreData)) {
+                if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
+                const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
+                localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, JSON.stringify(v));
+                localStorage.setItem(`kaenpro_rafael_${cleanKey}`, JSON.stringify(v));
+              }
+            } finally {
+              isApplyingRemoteUpdate = false;
+            }
+            window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
+          }
+        } catch (fbErr) {
+          console.warn("Direct Firestore initial fetch warning:", fbErr);
+        }
+
+        // Also fetch from Server API (which syncs SQLite/JSON cache and Firestore)
         const res = await fetch(`/api/sync/${tenant}`);
         if (res.ok) {
           const data = await res.json();
-          for (const [key, value] of Object.entries(data)) {
-            localStorage.setItem(`kaenpro_${tenant}_${key}`, JSON.stringify(value));
+          isApplyingRemoteUpdate = true;
+          try {
+            for (const [key, value] of Object.entries(data)) {
+              localStorage.setItem(`kaenpro_${tenant}_${key}`, JSON.stringify(value));
+              localStorage.setItem(`kaenpro_rafael_${key}`, JSON.stringify(value));
+            }
+          } finally {
+            isApplyingRemoteUpdate = false;
           }
-          // Notify any listening components
           window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
         }
         setSyncStatus(SyncStatus.SYNCED);
@@ -130,7 +222,6 @@ const App: React.FC = () => {
           const data = JSON.parse(event.data);
           
           if (data && data.type === "presence") {
-            // Presence registry broadcast from server
             window.dispatchEvent(new CustomEvent("kaen_presence_updated", { detail: data.sessions }));
             return;
           }
@@ -142,16 +233,20 @@ const App: React.FC = () => {
           }
           
           if (data && data.type === "connected") {
-            // Success response confirmation
             return;
           }
 
           // Otherwise, general storage sync update broadcasted
           const { key, value } = data;
           const userKey = `kaenpro_${tenant}_${key}`;
-          localStorage.setItem(userKey, JSON.stringify(value));
+          isApplyingRemoteUpdate = true;
+          try {
+            localStorage.setItem(userKey, JSON.stringify(value));
+            localStorage.setItem(`kaenpro_rafael_${key}`, JSON.stringify(value));
+          } finally {
+            isApplyingRemoteUpdate = false;
+          }
           
-          // Broadcast update inside client bundle
           window.dispatchEvent(new CustomEvent('kaen_storage_updated', { detail: { key, value } }));
         } catch (e) {
           console.error("Error processing SSE message", e);
@@ -160,27 +255,33 @@ const App: React.FC = () => {
       
       eventSource.onerror = () => {
         eventSource?.close();
-        setTimeout(connectStream, 5000); // Retry handshake
+        setTimeout(connectStream, 5000);
       };
     };
     
     connectStream();
 
-    // 3. Hybrid Background Poll & Instant Sync on Focus/Visibility (essential for Serverless/Vercel environments and mobile connections)
+    // 3. Hybrid Background Poll & Instant Sync on Focus/Visibility
     const runSyncFetch = async () => {
       try {
         const res = await fetch(`/api/sync/${tenant}?_t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           let anyChanged = false;
-          for (const [key, value] of Object.entries(data)) {
-            const userKey = `kaenpro_${tenant}_${key}`;
-            const localRaw = localStorage.getItem(userKey);
-            const serverRaw = JSON.stringify(value);
-            if (localRaw !== serverRaw) {
-              localStorage.setItem(userKey, serverRaw);
-              anyChanged = true;
+          isApplyingRemoteUpdate = true;
+          try {
+            for (const [key, value] of Object.entries(data)) {
+              const userKey = `kaenpro_${tenant}_${key}`;
+              const localRaw = localStorage.getItem(userKey);
+              const serverRaw = JSON.stringify(value);
+              if (localRaw !== serverRaw) {
+                localStorage.setItem(userKey, serverRaw);
+                localStorage.setItem(`kaenpro_rafael_${key}`, serverRaw);
+                anyChanged = true;
+              }
             }
+          } finally {
+            isApplyingRemoteUpdate = false;
           }
           if (anyChanged) {
             window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
@@ -202,10 +303,8 @@ const App: React.FC = () => {
       }
     };
 
-    // Run interval setup (frequent 2.5s polling while active)
     const pollInterval = setInterval(runSyncFetch, 2500);
 
-    // Instant sync triggers on Focus and VisibilityChange (perfect for fast phone switching)
     const handleSyncTrigger = () => {
       if (document.visibilityState === 'visible') {
         runSyncFetch();
@@ -218,19 +317,24 @@ const App: React.FC = () => {
     // 4. Real-time Firebase Firestore cloud listener
     const unsubscribeCloud = subscribeToWorkshopCloud((cloudData) => {
       let anyChanged = false;
-      for (const [k, v] of Object.entries(cloudData)) {
-        if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
-        const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
-        const targetKey1 = `kaenpro_${tenant}_${cleanKey}`;
-        const targetKey2 = `kaenpro_rafael_${cleanKey}`;
-        const strVal = JSON.stringify(v);
-        if (localStorage.getItem(targetKey1) !== strVal) {
-          localStorage.setItem(targetKey1, strVal);
-          anyChanged = true;
+      isApplyingRemoteUpdate = true;
+      try {
+        for (const [k, v] of Object.entries(cloudData)) {
+          if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
+          const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
+          const targetKey1 = `kaenpro_${tenant}_${cleanKey}`;
+          const targetKey2 = `kaenpro_rafael_${cleanKey}`;
+          const strVal = JSON.stringify(v);
+          if (localStorage.getItem(targetKey1) !== strVal) {
+            localStorage.setItem(targetKey1, strVal);
+            anyChanged = true;
+          }
+          if (localStorage.getItem(targetKey2) !== strVal) {
+            localStorage.setItem(targetKey2, strVal);
+          }
         }
-        if (localStorage.getItem(targetKey2) !== strVal) {
-          localStorage.setItem(targetKey2, strVal);
-        }
+      } finally {
+        isApplyingRemoteUpdate = false;
       }
       if (anyChanged) {
         window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
@@ -238,12 +342,52 @@ const App: React.FC = () => {
       setSyncStatus(SyncStatus.SYNCED);
     });
 
+    // 5. Force Cloud Backup listener
+    const handleForceBackup = async () => {
+      setSyncStatus(SyncStatus.SYNCING);
+      try {
+        const allLocalData: Record<string, any> = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('kaenpro_') || key.startsWith('kaen_'))) {
+            try {
+              allLocalData[key] = JSON.parse(localStorage.getItem(key) || 'null');
+            } catch (e) {
+              allLocalData[key] = localStorage.getItem(key);
+            }
+          }
+        }
+
+        // Direct Firestore writes
+        for (const [k, val] of Object.entries(allLocalData)) {
+          if (val !== null && typeof val !== 'undefined') {
+            await saveWorkshopFieldToCloud(k, val);
+          }
+        }
+
+        // Server API bulk persistence
+        await fetch('/api/cloud-sync-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(allLocalData)
+        });
+
+        console.log("☁️ Forced full cloud backup completed successfully!");
+      } catch (err) {
+        console.error("Forced cloud backup error:", err);
+      } finally {
+        setSyncStatus(SyncStatus.SYNCED);
+      }
+    };
+    window.addEventListener('kaen_force_cloud_backup', handleForceBackup);
+
     return () => {
       eventSource?.close();
       unsubscribeCloud();
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleSyncTrigger);
       document.removeEventListener('visibilitychange', handleSyncTrigger);
+      window.removeEventListener('kaen_force_cloud_backup', handleForceBackup);
     };
   }, [session]);
 
@@ -395,7 +539,18 @@ const App: React.FC = () => {
         <Route path="/employees" element={<PrivateLayout><Employees /></PrivateLayout>} />
         <Route path="/ai-marketing" element={<PrivateLayout><AiAssistant /></PrivateLayout>} />
         <Route path="/project-dossier" element={<PrivateLayout><ProjectDocument session={session} syncData={syncData} /></PrivateLayout>} />
-        <Route path="/terminal" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
+        <Route path="/terminal" element={<PrivateLayout><MechanicTerminal session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/budgets" element={<PrivateLayout><Budgets session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/checklists" element={<PrivateLayout><ChecklistsView session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/suppliers" element={<PrivateLayout><Suppliers session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/reports" element={<PrivateLayout><Reports session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/marketing" element={<PrivateLayout><Marketing session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/reviews" element={<PrivateLayout><Reviews session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/after-sales" element={<PrivateLayout><AfterSales session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/whatsapp" element={<PrivateLayout><WhatsAppHub session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/gallery" element={<PrivateLayout><Gallery session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/settings" element={<PrivateLayout><AdminPanel session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/users" element={<PrivateLayout><AdminPanel session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

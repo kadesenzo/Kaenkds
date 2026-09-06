@@ -195,4 +195,56 @@ export interface Appointment {
   status: string;
   attemptsCount: number;
   notes?: string;
+  mechanicResponsible?: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactName: string;
+  phone: string;
+  email?: string;
+  cnpj?: string;
+  category: string;
+  products: string;
+  paymentTerms: string;
+  rating?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CustomerReview {
+  id: string;
+  clientName: string;
+  clientPhone?: string;
+  vehicleModel?: string;
+  osId?: string;
+  rating: number; // 1 to 5
+  feedback: string;
+  source: 'WhatsApp' | 'Google' | 'Presencial';
+  date: string;
+  status: 'Avaliado' | 'Aguardando Avaliação' | 'Respondido';
+}
+
+export interface MarketingLead {
+  id: string;
+  name: string;
+  phone: string;
+  vehicleModel?: string;
+  origin: 'Instagram' | 'Google' | 'Indicação' | 'Anúncios' | 'WhatsApp' | 'Outro';
+  stage: 'Lead' | 'Contato' | 'Orçamento' | 'Agendamento' | 'Serviço' | 'Cliente Recorrente';
+  estimatedValue?: number;
+  notes?: string;
+  createdAt: string;
+  lastContactDate?: string;
+}
+
+export interface KnowledgeDoc {
+  id: string;
+  title: string;
+  category: 'Checklists' | 'Procedimentos Internos' | 'Padrões de Atendimento' | 'Fornecedores' | 'Treinamentos';
+  summary: string;
+  content: string;
+  author: string;
+  updatedAt: string;
 }

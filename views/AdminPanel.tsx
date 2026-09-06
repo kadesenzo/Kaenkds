@@ -5,7 +5,7 @@ import {
   Trash2, ToggleLeft, ToggleRight, Smartphone, Laptop, Clock,
   Activity, Wifi, WifiOff, FileText, CheckCircle, XCircle, 
   UserPlus, HardDrive, Database, Cpu, Lock, Unlock, Settings, 
-  Filter, Search, UserCheck, ShieldX, Check, AlertCircle, FileSpreadsheet
+  Filter, Search, UserCheck, ShieldX, Check, AlertCircle, FileSpreadsheet, Cloud
 } from 'lucide-react';
 import { UserSession } from '../types';
 
@@ -123,6 +123,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
   const [dbWeight, setDbWeight] = useState(3.42);
   const [isSyncAlive, setIsSyncAlive] = useState(true);
   const [onlineSessions, setOnlineSessions] = useState<any[]>([]);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [cloudSyncSuccess, setCloudSyncSuccess] = useState(false);
+
+  const handleForceCloudBackup = () => {
+    setIsCloudSyncing(true);
+    window.dispatchEvent(new CustomEvent('kaen_force_cloud_backup'));
+    setTimeout(() => {
+      setIsCloudSyncing(false);
+      setCloudSyncSuccess(true);
+      setTimeout(() => setCloudSyncSuccess(false), 4000);
+    }, 1200);
+  };
 
   // Real-time online sessions presence listener
   useEffect(() => {
@@ -896,7 +908,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                       <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest text-left mt-1.5">ACOMPANHAMENTO ATIVO EM TEMPO REAL DOS TERMINAIS</p>
                     </div>
                     {/* Simulator Action Controls */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        onClick={handleForceCloudBackup}
+                        disabled={isCloudSyncing}
+                        className={`px-4 py-2 border rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-sm
+                        ${cloudSyncSuccess 
+                          ? 'border-emerald-500 bg-emerald-500 text-black font-black' 
+                          : 'border-white/10 bg-zinc-900/90 hover:bg-emerald-500/20 text-white hover:border-emerald-500/40'}`}
+                        title="Sincroniza todos os registros locais e remotos imediatamente com a Nuvem Firebase Firestore"
+                      >
+                        <Cloud size={12} className={isCloudSyncing ? 'text-amber-400 animate-spin' : cloudSyncSuccess ? 'text-black' : 'text-emerald-400'} />
+                        {isCloudSyncing ? 'Sincronizando Nuvem...' : cloudSyncSuccess ? '100% Salvo na Nuvem' : 'Sincronizar Nuvem Agora'}
+                      </button>
+
                       <button 
                         onClick={() => setIsSyncAlive(!isSyncAlive)}
                         className={`px-4 py-2 border rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2

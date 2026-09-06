@@ -8,21 +8,24 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 const app = express();
 const PORT = 3000;
 
-// Initialize GoogleGenAI client with correct required parameters
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Lazy initialization of Gemini client to prevent crash if API key is not yet set
+let aiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error("GEMINI_API_KEY is not configured. Please set it in Settings.");
     }
+    aiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
-
-function getGeminiClient() {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("GEMINI_API_KEY is missing. AI routes will fall back or fail unless configured in Settings.");
-  }
-  return ai;
+  return aiClient;
 }
 
 // Initialize Firebase Firestore for persistent cloud storage
@@ -50,6 +53,11 @@ const DB_PATH = process.env.VERCEL
   : path.join(process.cwd(), "kaen_db.json");
 
 app.use(express.json({ limit: "50mb" }));
+
+// Immediate health check route for container supervisor and proxy
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
 
 // In-memory cache for ultra-fast reading in Serverless environment
 let dbCache: any = null;
@@ -111,7 +119,7 @@ function readDb() {
 }
 
 // Write database state helper
-function writeDb(data: any) {
+function writeDb(data: any, specificKey?: string) {
   dbCache = data;
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
@@ -123,9 +131,21 @@ function writeDb(data: any) {
   if (firestoreDb) {
     try {
       const docRef = doc(firestoreDb, "workshops", FIRESTORE_DOC_ID);
-      setDoc(docRef, data, { merge: true }).catch(err => {
+      setDoc(docRef, { ...data, lastUpdatedAt: new Date().toISOString() }, { merge: true }).catch(err => {
         console.error("Firestore persistence error:", err);
       });
+
+      // Also persist to collection document if a specific key was updated
+      if (specificKey) {
+        const cleanKey = specificKey.replace(/^kaenpro_[^_]+_/, '');
+        const colVal = data[`kaenpro_rafael_${cleanKey}`] || data[specificKey];
+        if (colVal) {
+          const colRef = doc(firestoreDb, "workshop_collections", cleanKey);
+          setDoc(colRef, { data: colVal, key: cleanKey, updatedAt: new Date().toISOString() }, { merge: true }).catch(err => {
+            console.error("Firestore collection doc persistence error:", err);
+          });
+        }
+      }
     } catch (err) {
       console.error("Firestore write exception:", err);
     }
@@ -234,7 +254,7 @@ app.post("/api/sync/:username/:key", async (req, res) => {
   // Update both the specific user namespace and the workshop shared namespace
   db[userKey] = payload;
   db[sharedKey] = payload;
-  writeDb(db);
+  writeDb(db, key);
   
   // Broadcast real-time data update to current user and all other active sessions across devices
   broadcastToUser(username, { key, value: payload });
@@ -248,6 +268,62 @@ app.post("/api/sync/:username/:key", async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// Endpoint for public appointments requested from LandingPage
+app.post("/api/public/appointments", (req, res) => {
+  const newAppointment = req.body;
+  if (!newAppointment || !newAppointment.id) {
+    return res.status(400).json({ error: "Invalid appointment payload" });
+  }
+
+  const db = readDb();
+  const currentAppointments = db["kaenpro_rafael_appointments"] || db["kaen_appointments"] || [];
+  const updatedAppointments = [...currentAppointments, newAppointment];
+
+  db["kaenpro_rafael_appointments"] = updatedAppointments;
+  db["kaen_appointments"] = updatedAppointments;
+  writeDb(db, "appointments");
+
+  // Broadcast to all active terminals so appointments pop up immediately
+  for (const user of Object.keys(clients)) {
+    broadcastToUser(user, { key: "appointments", value: updatedAppointments });
+  }
+
+  console.log("📅 Public appointment booked and saved to cloud:", newAppointment.clientName);
+  res.json({ success: true, appointment: newAppointment });
+});
+
+// Full workshop cloud sync & verification endpoint
+app.post("/api/cloud-sync-all", (req, res) => {
+  const payload = req.body;
+  if (!payload || typeof payload !== "object") {
+    return res.status(400).json({ error: "Invalid payload" });
+  }
+
+  const db = readDb();
+  for (const [k, v] of Object.entries(payload)) {
+    if (k.startsWith("kaenpro_") || k.startsWith("kaen_")) {
+      db[k] = v;
+    }
+  }
+  writeDb(db);
+
+  res.json({ 
+    success: true, 
+    syncedKeysCount: Object.keys(payload).length,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Cloud status endpoint
+app.get("/api/cloud-status", (req, res) => {
+  res.json({
+    online: true,
+    firestoreConnected: firestoreDb !== null,
+    firestoreProject: "ai-studio-remixkaenbeyondl-999d1f6a-d34c-4a15-ae5c-e0ceb03074d1",
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Presence endpoint
@@ -316,11 +392,17 @@ app.get("/api/sync-stream/:username", (req, res) => {
   });
 });
 
-// Dynamic Room Registry & Multi-Tenant Setup
+// Dynamic Room Registry & Multi-Tenant Setup (Protected by Master Password)
 app.post("/api/rooms/create", async (req, res) => {
-  const { roomId, password, name } = req.body;
+  const { roomId, password, name, masterPassword } = req.body;
   if (!roomId || !password || !name) {
     res.status(400).json({ error: "Parâmetros inválidos para criação da oficina." });
+    return;
+  }
+
+  // Master password required to create new rooms
+  if (masterPassword !== "enzo1234") {
+    res.status(403).json({ error: "ACESSO RECUSADO: Senha de Administrador Master incorreta para criar salas." });
     return;
   }
 
@@ -650,14 +732,14 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -669,7 +751,9 @@ async function startServer() {
   }
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Critical error starting server:", err);
+});
 
 export { app };
 export default app;

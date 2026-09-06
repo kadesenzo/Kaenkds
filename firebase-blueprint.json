@@ -97,6 +97,45 @@
         "role": { "type": "string" },
         "status": { "type": "string" }
       }
+    },
+    "suppliers": {
+      "collection": "suppliers",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "contactName": { "type": "string" },
+        "phone": { "type": "string" },
+        "category": { "type": "string" },
+        "rating": { "type": "number" }
+      }
+    },
+    "leads": {
+      "collection": "leads",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "phone": { "type": "string" },
+        "vehicle": { "type": "string" },
+        "stage": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "reviews": {
+      "collection": "reviews",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "clientName": { "type": "string", "required": true },
+        "vehicle": { "type": "string" },
+        "rating": { "type": "number", "required": true },
+        "comment": { "type": "string" }
+      }
+    },
+    "workshops": {
+      "collection": "workshops",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "lastUpdatedAt": { "type": "string" }
+      }
     }
   }
 }

@@ -163,7 +163,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [recoveryError, setRecoveryError] = useState('');
   const [recoveredPass, setRecoveredPass] = useState('');
 
-  // Room Creation States
+  // Room Creation States (Protected by Master Password)
+  const [showMasterAuthModal, setShowMasterAuthModal] = useState(false);
+  const [masterPasswordInput, setMasterPasswordInput] = useState('');
+  const [masterAuthError, setMasterAuthError] = useState('');
+  const [masterAuthorizedPassword, setMasterAuthorizedPassword] = useState('');
+
   const [showRoomCreator, setShowRoomCreator] = useState(false);
   const [newRoomId, setNewRoomId] = useState('');
   const [newRoomPassword, setNewRoomPassword] = useState('');
@@ -171,6 +176,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [roomCreatorError, setRoomCreatorError] = useState('');
   const [roomCreatorSuccess, setRoomCreatorSuccess] = useState('');
+
+  const handleVerifyMasterPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMasterAuthError('');
+    if (masterPasswordInput.trim() === 'enzo1234') {
+      setMasterAuthorizedPassword(masterPasswordInput.trim());
+      setShowMasterAuthModal(false);
+      setMasterPasswordInput('');
+      setShowRoomCreator(true);
+    } else {
+      setMasterAuthError('SENHA MASTER INCORRETA: Apenas o Administrador Master tem autorização para criar salas.');
+    }
+  };
 
   // Dynamically load users when server code changes
   useEffect(() => {
@@ -223,7 +241,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         body: JSON.stringify({
           roomId: newRoomId,
           password: newRoomPassword,
-          name: newRoomName
+          name: newRoomName,
+          masterPassword: masterAuthorizedPassword || 'enzo1234'
         })
       });
 
@@ -514,8 +533,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                       <span className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 text-zinc-300 border border-white/10">
                         {trustedDevice.role}
                       </span>
-                      <span className="text-[8px] text-zinc-500 uppercase tracking-wider">
-                        Sala: {trustedDevice.username}
+                      <span className="text-[8px] text-zinc-400 uppercase tracking-wider">
+                        {trustedDevice.username === 'rafael' ? 'Oficina: Auto Mecânica KAEN' : `Oficina: ${trustedDevice.username}`}
                       </span>
                     </div>
                   </div>
@@ -594,43 +613,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* INTEGRATED SERVER KEY / WORKSHOP CODE */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center px-4">
-                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] block italic">CÓDIGO DA OFICINA</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowRoomCreator(true)}
-                    className="text-[#FF2D55] text-[9px] font-black uppercase tracking-widest hover:underline italic"
-                  >
-                    + CRIAR NOVA SALA
-                  </button>
-                </div>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="EX: OFICINA-458"
-                    value={tenant} 
-                    onChange={(e) => setTenant(e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, ''))} 
-                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl px-12 py-4 text-white hover:border-[#FF2D55]/30 focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs uppercase tracking-widest text-center shadow-inner"
-                  />
-                  <Cloud size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
-                </div>
-                
-                {tenant !== "rafael" && (
-                  <div className="space-y-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block pl-4 italic text-left">SENHA DE ACESSO À OFICINA</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="SENHA DA OFICINA"
-                      value={roomPassword}
-                      onChange={(e) => setRoomPassword(e.target.value)}
-                      className="w-full bg-zinc-950/70 border border-white/10 rounded-2xl px-4 py-3.5 text-white focus:border-[#FF2D55]/50 outline-none transition-all font-black text-xs tracking-widest text-center shadow-inner"
-                    />
+              {/* UNIDADE EXCLUSIVA: AUTO MECÂNICA KAEN */}
+              <div className="p-4 bg-zinc-950/90 border border-white/10 rounded-2xl flex items-center justify-between shadow-inner">
+                <div className="flex items-center gap-3.5 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-[#FF2D55]/15 border border-[#FF2D55]/30 flex items-center justify-center text-[#FF2D55] shrink-0">
+                    <ShieldCheck size={22} />
                   </div>
-                )}
+                  <div>
+                    <span className="text-[8px] font-black uppercase tracking-[0.25em] text-[#FF2D55] block">OFICINA OFICIAL CONECTADA</span>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white">AUTO MECÂNICA KAEN</h4>
+                    <span className="text-[8.5px] text-zinc-500 font-mono">Unidade Matriz Oficial • Registro/SP</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-[8px] font-black uppercase tracking-wider">ONLINE</span>
+                </div>
               </div>
 
               {/* Account Profile Quick Selector */}
@@ -732,6 +730,22 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 <Lock size={16} />
                 <span>EFETUAR AUTENTICAÇÃO</span>
               </button>
+
+              {/* ACESSO ADMINISTRATIVO RESTRITO PARA CRIAÇÃO DE SALAS - PROTEGIDO COM SENHA */}
+              <div className="pt-2 text-center border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterPasswordInput('');
+                    setMasterAuthError('');
+                    setShowMasterAuthModal(true);
+                  }}
+                  className="text-zinc-600 hover:text-zinc-400 text-[8.5px] font-black uppercase tracking-[0.2em] transition-colors flex items-center justify-center gap-1.5 mx-auto py-1"
+                >
+                  <Lock size={11} />
+                  <span>Criar Nova Sala (Requer Senha Master)</span>
+                </button>
+              </div>
             </form>
           )}
         </div>
@@ -824,6 +838,69 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MASTER AUTH MODAL - GATES ROOM CREATION */}
+      {showMasterAuthModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/98 backdrop-blur-2xl animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#0D0D0E] border border-white/10 p-8 rounded-[2.5rem] shadow-2xl relative">
+            <div className="text-center space-y-4 mb-6">
+              <div className="w-12 h-12 bg-[#FF2D55]/10 text-[#FF2D55] border border-[#FF2D55]/20 rounded-2xl flex items-center justify-center mx-auto">
+                <ShieldAlert size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black italic uppercase text-white tracking-widest leading-none">AUTORIZAÇÃO MASTER</h3>
+                <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-2">
+                  A criação de novas salas é restrita. Digite a senha do Administrador Master para continuar.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleVerifyMasterPassword} className="space-y-5">
+              <div className="space-y-2 text-left">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block ml-2">SENHA DO ADMINISTRADOR MASTER</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    placeholder="DIGITE A SENHA MASTER"
+                    value={masterPasswordInput}
+                    onChange={(e) => setMasterPasswordInput(e.target.value)}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3.5 text-white text-xs font-mono outline-none focus:border-[#FF2D55]/50 transition-all tracking-widest text-center shadow-inner"
+                  />
+                </div>
+              </div>
+
+              {masterAuthError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[9.5px] p-3.5 rounded-xl text-center font-black uppercase italic leading-tight">
+                  {masterAuthError}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMasterAuthModal(false);
+                    setMasterPasswordInput('');
+                    setMasterAuthError('');
+                  }}
+                  className="flex-1 bg-zinc-900 text-zinc-400 py-3.5 rounded-xl font-bold uppercase text-[9px] tracking-widest hover:text-white transition-all border border-white/5"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#FF2D55] text-white py-3.5 rounded-xl font-black uppercase text-[9px] tracking-widest active:scale-95 transition-all shadow-[0_10px_25px_rgba(255,45,85,0.25)] italic flex items-center justify-center gap-2"
+                >
+                  <Lock size={14} />
+                  <span>AUTORIZAR</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

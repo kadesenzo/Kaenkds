@@ -10,6 +10,7 @@ import {
   Sparkles, Layers, ExternalLink, Award, CheckCircle, ChevronDown, Flame
 } from 'lucide-react';
 import KaenLogo from '../components/KaenLogo';
+import { saveWorkshopFieldToCloud } from '../src/lib/firebase';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ const LandingPage: React.FC = () => {
     name: '', phone: '', vehicle: '', date: '', time: '', service: 'Revisão Preventiva'
   });
 
-  const handleBooking = (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     const message = `Olá! Sou ${bookingForm.name}. Vi o site da Kaen e gostaria de agendar um(a) ${bookingForm.service} para o dia ${bookingForm.date} às ${bookingForm.time} no meu ${bookingForm.vehicle}.`;
     const phone = '5511999999999'; 
@@ -36,7 +37,25 @@ const LandingPage: React.FC = () => {
       attemptsCount: 1,
       createdAt: new Date().toISOString()
     };
-    localStorage.setItem('kaen_appointments', JSON.stringify([...savedApps, newApp]));
+    const updatedApps = [...savedApps, newApp];
+    localStorage.setItem('kaen_appointments', JSON.stringify(updatedApps));
+
+    // Persist immediately to cloud endpoints and Firestore
+    try {
+      await fetch('/api/public/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newApp)
+      });
+    } catch (err) {
+      console.warn("Cloud appointment sync fallback:", err);
+    }
+    try {
+      await saveWorkshopFieldToCloud('kaenpro_rafael_appointments', updatedApps);
+      await saveWorkshopFieldToCloud('kaen_appointments', updatedApps);
+    } catch (err) {
+      // offline fallback
+    }
 
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
     setShowBooking(false);

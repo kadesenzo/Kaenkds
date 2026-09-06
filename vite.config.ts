@@ -5,8 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Permite que process.env seja acessado no navegador durante o build
-    'process.env': process.env
+    'process.env': {}
   },
   build: {
     outDir: 'dist',
@@ -14,6 +13,8 @@ export default defineConfig({
     sourcemap: false
   },
   server: {
-    port: 3000
+    port: 3000,
+    host: '0.0.0.0',
+    hmr: false
   }
 });
