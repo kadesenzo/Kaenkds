@@ -329,7 +329,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
                   <input
                     type="text"
                     required
-                    placeholder="(11) 98765-4321"
+                    placeholder="(13) 99689-2958"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full bg-black border border-white/10 rounded-xl p-3 text-white"

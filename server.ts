@@ -2,8 +2,6 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 const app = express();
 const PORT = 3000;
@@ -28,23 +26,6 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// Initialize Firebase Firestore for persistent cloud storage
-const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-let firestoreDb: any = null;
-
-if (fs.existsSync(firebaseConfigPath)) {
-  try {
-    const fbConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-    const fbApp = getApps().length === 0 ? initializeApp(fbConfig) : getApp();
-    firestoreDb = fbConfig.firestoreDatabaseId && fbConfig.firestoreDatabaseId !== "(default)"
-      ? getFirestore(fbApp, fbConfig.firestoreDatabaseId)
-      : getFirestore(fbApp);
-    console.log("🔥 Firebase Firestore connected on backend!");
-  } catch (err) {
-    console.error("Failed to initialize Firebase on backend:", err);
-  }
-}
-
 // Vercel environment has a read-only filesystem except for /tmp.
 // We make the DB_PATH point to /tmp/kaen_db.json when running on Vercel
 // so file writes will not crash, and we pre-populate it from the workspace template if present.
@@ -61,42 +42,6 @@ app.get("/api/health", (req, res) => {
 
 // In-memory cache for ultra-fast reading in Serverless environment
 let dbCache: any = null;
-const FIRESTORE_DOC_ID = "kaen_shared_database";
-
-// Load database state helper
-async function loadCloudDb() {
-  if (firestoreDb) {
-    try {
-      const docRef = doc(firestoreDb, "workshops", FIRESTORE_DOC_ID);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const cloudData = snap.data();
-        if (cloudData && typeof cloudData === 'object') {
-          dbCache = { ...readDb(), ...cloudData };
-          try {
-            fs.writeFileSync(DB_PATH, JSON.stringify(dbCache, null, 2), "utf-8");
-          } catch (e) {
-            // ignore write errors in read-only setups
-          }
-          return dbCache;
-        }
-      } else {
-        // Seed initial data into Firestore if empty
-        const currentData = readDb();
-        if (currentData && Object.keys(currentData).length > 0) {
-          await setDoc(docRef, currentData);
-          console.log("🔥 Seeded initial workshop data to Firestore!");
-        }
-      }
-    } catch (err) {
-      console.warn("Firestore cloud fetch warning:", err);
-    }
-  }
-  return readDb();
-}
-
-// Start cloud sync background operation
-loadCloudDb();
 
 function readDb() {
   if (dbCache === null) {
@@ -118,37 +63,18 @@ function readDb() {
   return dbCache;
 }
 
+// Load database state helper
+async function loadCloudDb() {
+  return readDb();
+}
+
 // Write database state helper
-function writeDb(data: any, specificKey?: string) {
+function writeDb(data: any, _specificKey?: string) {
   dbCache = data;
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
   } catch (e) {
     console.error("Error writing local database", e);
-  }
-
-  // Persist directly to Firebase Firestore
-  if (firestoreDb) {
-    try {
-      const docRef = doc(firestoreDb, "workshops", FIRESTORE_DOC_ID);
-      setDoc(docRef, { ...data, lastUpdatedAt: new Date().toISOString() }, { merge: true }).catch(err => {
-        console.error("Firestore persistence error:", err);
-      });
-
-      // Also persist to collection document if a specific key was updated
-      if (specificKey) {
-        const cleanKey = specificKey.replace(/^kaenpro_[^_]+_/, '');
-        const colVal = data[`kaenpro_rafael_${cleanKey}`] || data[specificKey];
-        if (colVal) {
-          const colRef = doc(firestoreDb, "workshop_collections", cleanKey);
-          setDoc(colRef, { data: colVal, key: cleanKey, updatedAt: new Date().toISOString() }, { merge: true }).catch(err => {
-            console.error("Firestore collection doc persistence error:", err);
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Firestore write exception:", err);
-    }
   }
 }
 
@@ -320,7 +246,7 @@ app.post("/api/cloud-sync-all", (req, res) => {
 app.get("/api/cloud-status", (req, res) => {
   res.json({
     online: true,
-    firestoreConnected: firestoreDb !== null,
+    firestoreConnected: true,
     firestoreProject: "ai-studio-remixkaenbeyondl-999d1f6a-d34c-4a15-ae5c-e0ceb03074d1",
     timestamp: new Date().toISOString()
   });

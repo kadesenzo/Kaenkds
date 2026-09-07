@@ -161,7 +161,7 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ session }) => {
                   type="text"
                   value={customPhone}
                   onChange={(e) => setCustomPhone(e.target.value)}
-                  placeholder="(11) 98765-4321"
+                  placeholder="(13) 99689-2958"
                   className="w-full bg-black border border-white/10 rounded-xl p-3 text-white font-mono font-bold"
                 />
               </div>

@@ -27,7 +27,7 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
           <div className="inv-company-info">
             <h1>Auto Mecânica Kaen</h1>
             <p>Rua Joaquim Marques Alves, 765 - Registro/SP</p>
-            <p>CNPJ: 00.000.000/0001-00 • (11) 98765-4321</p>
+            <p>Celular / WhatsApp: (13) 99689-2958</p>
           </div>
         </div>
         <div className="inv-os-info">

@@ -25,7 +25,7 @@ const LandingPage: React.FC = () => {
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     const message = `Olá! Sou ${bookingForm.name}. Vi o site da Kaen e gostaria de agendar um(a) ${bookingForm.service} para o dia ${bookingForm.date} às ${bookingForm.time} no meu ${bookingForm.vehicle}.`;
-    const phone = '5511999999999'; 
+    const phone = '5513996892958'; 
     
     const savedApps = JSON.parse(localStorage.getItem('kaen_appointments') || '[]');
     const newApp = {
