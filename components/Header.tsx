@@ -61,7 +61,7 @@ const Header: React.FC<HeaderProps> = ({
   const allowedWorkspaces = allWorkspaces.filter(ws => ws.roles.includes(role));
 
   return (
-    <header className="h-auto min-h-24 md:h-28 flex flex-col md:flex-row items-center justify-between px-4 md:px-12 z-40 bg-black/45 backdrop-blur-md border-b border-white/5 sticky top-0 gap-3 py-3 md:py-0 mb-4 md:mb-6 w-full">
+    <header className="h-auto md:h-24 flex flex-col md:flex-row items-center justify-between px-3 sm:px-6 md:px-12 z-40 bg-black/60 backdrop-blur-md border-b border-white/5 sticky top-0 gap-2 md:gap-3 py-2 sm:py-3 md:py-0 mb-2 md:mb-6 w-full">
       <div className="flex flex-row items-center gap-2 sm:gap-4 w-full md:w-auto justify-between md:justify-start">
         <button 
           onClick={onToggleSidebar}

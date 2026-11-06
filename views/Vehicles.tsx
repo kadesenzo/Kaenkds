@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Car, Search, Trash2, User, Info, ChevronRight, Wrench } from 'lucide-react';
+import { Car, Search, Trash2, User, Info, ChevronRight, Wrench, Gauge } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Vehicle, Client, ServiceOrder, UserSession } from '../types';
+import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 interface VehiclesProps {
   session?: UserSession;
@@ -17,14 +18,13 @@ const Vehicles: React.FC<{ session?: UserSession; syncData?: (key: string, data:
   const [searchTerm, setSearchTerm] = useState('');
 
   const loadData = () => {
-    if (session) {
-      const userVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
-      const userClients = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
-      const userOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
-      setVehicles(userVehicles);
-      setClients(userClients);
-      setOrders(userOrders);
-    }
+    const tenant = session?.username || 'rafael';
+    const userVehicles = getWorkshopData<Vehicle[]>('vehicles', tenant, []);
+    const userClients = getWorkshopData<Client[]>('clients', tenant, []);
+    const userOrders = getWorkshopData<ServiceOrder[]>('orders', tenant, []);
+    setVehicles(userVehicles);
+    setClients(userClients);
+    setOrders(userOrders);
   };
 
   useEffect(() => {
@@ -34,11 +34,12 @@ const Vehicles: React.FC<{ session?: UserSession; syncData?: (key: string, data:
   }, [session]);
 
   const handleDelete = async (id: string) => {
-    if (!session || !syncData) return;
     if (confirm("⚠️ DESEJA REALMENTE EXCLUIR ESTE VEÍCULO DA FROTA?")) {
+      const tenant = session?.username || 'rafael';
       const updated = vehicles.filter(v => v.id !== id);
       setVehicles(updated);
-      await syncData('vehicles', updated);
+      await saveWorkshopData('vehicles', updated, tenant);
+      if (syncData) await syncData('vehicles', updated);
     }
   };
 

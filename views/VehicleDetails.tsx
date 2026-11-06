@@ -17,9 +17,11 @@ import {
   X,
   History,
   TrendingUp,
-  ExternalLink
+  ExternalLink,
+  Gauge
 } from 'lucide-react';
 import { Vehicle, Client, ServiceOrder, OSStatus, PaymentStatus, OSItem, UserSession } from '../types';
+import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ session, syncData }) => {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,8 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
   const [owner, setOwner] = useState<Client | null>(null);
   const [history, setHistory] = useState<ServiceOrder[]>([]);
   const [showAddService, setShowAddService] = useState(false);
+  const [showKmModal, setShowKmModal] = useState(false);
+  const [newKmInput, setNewKmInput] = useState('');
   
   // New Quick Service Form State
   const [newService, setNewService] = useState({
@@ -40,9 +44,9 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
 
   const loadData = () => {
     const tenant = session?.username || 'rafael';
-    const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_vehicles`) || '[]');
-    const savedClients = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_clients`) || '[]');
-    const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_orders`) || '[]');
+    const savedVehicles = getWorkshopData<Vehicle[]>('vehicles', tenant, []);
+    const savedClients = getWorkshopData<Client[]>('clients', tenant, []);
+    const savedOrders = getWorkshopData<ServiceOrder[]>('orders', tenant, []);
 
     const foundVehicle = savedVehicles.find((v: Vehicle) => v.id === id);
     if (foundVehicle) {
@@ -55,6 +59,22 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ));
     }
+  };
+
+  const handleUpdateKm = async () => {
+    if (!vehicle) return;
+    const val = parseFloat(newKmInput);
+    if (isNaN(val) || val <= 0) {
+      alert("Informe uma quilometragem válida.");
+      return;
+    }
+    const tenant = session?.username || 'rafael';
+    const currentVehicles = getWorkshopData<Vehicle[]>('vehicles', tenant, []);
+    const updatedVehicles = currentVehicles.map(v => v.id === vehicle.id ? { ...v, km: val } : v);
+    setVehicle({ ...vehicle, km: val });
+    await saveWorkshopData('vehicles', updatedVehicles, tenant);
+    if (syncData) await syncData('vehicles', updatedVehicles);
+    setShowKmModal(false);
   };
 
   useEffect(() => {
@@ -155,9 +175,19 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
             <h1 className="text-4xl font-black text-white leading-tight uppercase tracking-tighter">
               {vehicle.model}
             </h1>
-            <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs flex items-center gap-2 mt-1">
-              {vehicle.brand} • {vehicle.year || 'Ano N/A'} • <span className="text-[#A32121]">{vehicle.km.toLocaleString('pt-BR')} KM</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5">
+              <span className="text-zinc-500 font-bold uppercase tracking-widest text-xs">
+                {vehicle.brand} • {vehicle.year || 'Ano N/A'} • <span className="text-[#A32121] font-black">{vehicle.km.toLocaleString('pt-BR')} KM</span>
+              </span>
+              <button 
+                onClick={() => { setNewKmInput(vehicle.km.toString()); setShowKmModal(true); }}
+                className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                title="Atualizar quilometragem do veículo para retorno à oficina"
+              >
+                <Gauge size={13} />
+                <span>Atualizar KM (Retorno)</span>
+              </button>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -435,6 +465,58 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
                 Salvar no Histórico
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Atualizar KM */}
+      {showKmModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-in fade-in">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md p-6 sm:p-8 rounded-[2rem] shadow-2xl relative space-y-6">
+            <button 
+              onClick={() => setShowKmModal(false)}
+              className="absolute top-6 right-6 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl">
+                <Gauge size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-white uppercase italic tracking-tight">Atualizar Quilometragem</h3>
+                <p className="text-[10px] text-zinc-400 uppercase tracking-widest">{vehicle.plate} • {vehicle.model}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3.5 bg-black/50 border border-white/5 rounded-xl">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase block">KM Anterior Registrado:</span>
+                <span className="text-sm font-black text-zinc-300">{vehicle.km.toLocaleString('pt-BR')} KM</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-emerald-400 uppercase tracking-wider block">
+                  Novo KM Atual nesta Visita:
+                </label>
+                <input
+                  type="number"
+                  autoFocus
+                  value={newKmInput}
+                  onChange={(e) => setNewKmInput(e.target.value)}
+                  placeholder={`Ex: ${vehicle.km + 5000}`}
+                  className="w-full bg-black border border-white/15 focus:border-emerald-500 rounded-2xl px-5 py-4 text-white text-lg font-mono font-bold outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleUpdateKm}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-black py-4 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all shadow-xl shadow-emerald-900/30 active:scale-95 cursor-pointer"
+            >
+              Confirmar e Salvar no Banco
+            </button>
           </div>
         </div>
       )}

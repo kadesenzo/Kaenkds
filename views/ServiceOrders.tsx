@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Trash2, X, Eye, 
-  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car, Camera
+  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car, Camera, Filter, Plus, CalendarDays
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ServiceOrder, UserSession, OSStatus, PaymentStatus } from '../types';
 import html2canvas from 'html2canvas';
 import Invoice from '../components/Invoice';
 import AntesEDepoisModal from '../components/AntesEDepoisModal';
+import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ role = 'Dono', session, syncData }) => {
   const navigate = useNavigate();
@@ -16,27 +17,31 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [antesDepoisOs, setAntesDepoisOs] = useState<ServiceOrder | null>(null);
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const invoiceRef = useRef<HTMLDivElement>(null);
 
+  const loadData = () => {
+    const tenant = session?.username || 'rafael';
+    const saved = getWorkshopData<ServiceOrder[]>('orders', tenant, []);
+    setOrders(saved);
+  };
+
   useEffect(() => {
-    if (session) {
-      const load = () => {
-        const saved = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
-        setOrders(saved);
-      };
-      
-      load();
-      window.addEventListener('kaen_storage_updated', load);
-      return () => window.removeEventListener('kaen_storage_updated', load);
-    }
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [session]);
 
   const handleDelete = async (id: string) => {
-    if (role !== 'Dono' || !session || !syncData) return;
+    if (role !== 'Dono') return;
     if (!confirm("CONFIRMA EXCLUSÃO?")) return;
+    const tenant = session?.username || 'rafael';
     const updated = orders.filter(o => o.id !== id);
     setOrders(updated);
-    await syncData('orders', updated);
+    await saveWorkshopData('orders', updated, tenant);
+    if (syncData) await syncData('orders', updated);
   };
 
   const downloadImage = async () => {
@@ -56,8 +61,8 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
       const canvas = await html2canvas(clone, { 
         scale: 2.5, 
         backgroundColor: '#FFFFFF', 
-        useCORS: true,
-        width: 794,
+        useCORS: true, 
+        width: 794, 
         height: clone.offsetHeight // Capture full content
       });
       const link = document.createElement('a');
@@ -72,30 +77,133 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
     }
   };
 
-  const filtered = orders.filter(o => 
-    o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    o.vehiclePlate.includes(searchTerm.toUpperCase()) || 
-    o.osNumber.includes(searchTerm) ||
-    o.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const filtered = orders.filter(o => {
+    const matchesSearch = 
+      o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      o.vehiclePlate.includes(searchTerm.toUpperCase()) || 
+      o.osNumber.includes(searchTerm) ||
+      o.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (dateFilter === 'ALL') return true;
+
+    const osDate = new Date(o.createdAt);
+    const now = new Date();
+
+    if (dateFilter === 'TODAY') {
+      return osDate.toDateString() === now.toDateString();
+    }
+
+    if (dateFilter === 'WEEK') {
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return osDate >= oneWeekAgo && osDate <= now;
+    }
+
+    if (dateFilter === 'MONTH') {
+      return osDate.getMonth() === now.getMonth() && osDate.getFullYear() === now.getFullYear();
+    }
+
+    if (dateFilter === 'CUSTOM') {
+      if (startDate) {
+        const start = new Date(startDate + 'T00:00:00');
+        if (osDate < start) return false;
+      }
+      if (endDate) {
+        const end = new Date(endDate + 'T23:59:59');
+        if (osDate > end) return false;
+      }
+      return true;
+    }
+
+    return true;
+  }).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
-    <div className="animate-in fade-in duration-700 space-y-12 p-6 md:p-12 pb-40 max-w-[1200px] mx-auto flex flex-col items-center w-full">
-       <div className="flex flex-col items-center text-center gap-12 w-full mt-8">
-        <h1 className="text-3xl sm:text-5xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-[0.8] text-center">
-          HISTÓRICO <span className="text-[#FF2D55]">GERAL</span>
-        </h1>
+    <div className="animate-in fade-in duration-700 space-y-8 p-4 sm:p-6 md:p-12 pb-40 max-w-[1200px] mx-auto flex flex-col items-center w-full">
+       <div className="flex flex-col sm:flex-row items-center justify-between w-full mt-4 gap-4">
+        <div>
+          <h1 className="text-3xl sm:text-5xl font-black text-white italic uppercase tracking-tighter leading-tight text-center sm:text-left">
+            HISTÓRICO <span className="text-[#FF2D55]">GERAL</span>
+          </h1>
+          <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest text-center sm:text-left">
+            {filtered.length} {filtered.length === 1 ? 'ordem de serviço encontrada' : 'ordens de serviço encontradas'}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/orders/new')}
+          className="px-6 py-3.5 bg-[#FF2D55] hover:bg-[#D11D40] text-white rounded-2xl font-black uppercase text-xs tracking-wider flex items-center gap-2 shadow-xl shadow-red-900/30 active:scale-95 transition-all cursor-pointer"
+        >
+          <Plus size={16} />
+          <span>Fazer Nova Nota</span>
+        </button>
       </div>
 
-      <div className="w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-1.5 flex items-center shadow-2xl max-w-4xl">
-        <Search className="ml-4 text-zinc-700" size={20} />
-        <input 
-          type="text" 
-          value={searchTerm} 
-          onChange={(e) => setSearchTerm(e.target.value)} 
-          placeholder="BUSCAR POR PLACA, CARRO OU CLIENTE..." 
-          className="w-full bg-transparent border-none py-3 px-4 text-white font-black text-xs outline-none uppercase tracking-widest placeholder-zinc-850" 
-        />
+      {/* Busca & Filtro de Data */}
+      <div className="w-full space-y-4 max-w-4xl">
+        <div className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5 flex items-center shadow-xl">
+          <Search className="ml-4 text-zinc-600" size={18} />
+          <input 
+            type="text" 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            placeholder="BUSCAR POR PLACA, CARRO, CLIENTE OU NÚMERO DE OS..." 
+            className="w-full bg-transparent border-none py-3 px-4 text-white font-bold text-xs outline-none uppercase tracking-wider placeholder-zinc-700" 
+          />
+        </div>
+
+        {/* Barra de Filtro de Data */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-zinc-950/70 border border-white/5 rounded-2xl">
+          <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-black uppercase tracking-wider mr-2">
+            <CalendarDays size={14} className="text-[#FF2D55]" />
+            <span>Filtrar Data:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: 'ALL', label: 'Todas' },
+              { id: 'TODAY', label: 'Hoje' },
+              { id: 'WEEK', label: 'Esta Semana' },
+              { id: 'MONTH', label: 'Este Mês' },
+              { id: 'CUSTOM', label: 'Período' },
+            ].map(btn => (
+              <button
+                key={btn.id}
+                onClick={() => setDateFilter(btn.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  dateFilter === btn.id
+                    ? 'bg-white text-black font-black shadow-md'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-white/5'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+
+          {dateFilter === 'CUSTOM' && (
+            <div className="w-full sm:w-auto flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase">De:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-black border border-white/10 rounded-lg px-2.5 py-1 text-white text-[11px] font-bold outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-zinc-500 font-bold uppercase">Até:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-black border border-white/10 rounded-lg px-2.5 py-1 text-white text-[11px] font-bold outline-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
@@ -163,9 +271,15 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
 
       {selectedOrder && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-3xl overflow-y-auto no-scrollbar animate-in fade-in duration-500">
-          <div className="w-full max-w-[850px] flex flex-col items-center gap-12 my-20 px-4">
-             <button onClick={() => setSelectedOrder(null)} className="fixed top-10 right-10 text-white bg-white/10 p-5 rounded-full hover:bg-[#FF2D55] transition-all z-[210] border border-white/10 active:scale-90"><X size={32}/></button>
-             
+          <button 
+            onClick={() => setSelectedOrder(null)} 
+            className="fixed top-4 right-4 sm:top-8 sm:right-8 text-white bg-white/15 p-3 sm:p-4 rounded-full hover:bg-[#FF2D55] transition-all z-[220] border border-white/10 active:scale-90 cursor-pointer shadow-2xl"
+            aria-label="Fechar"
+          >
+            <X size={24}/>
+          </button>
+
+          <div className="w-full max-w-[850px] flex flex-col items-center gap-6 sm:gap-10 my-8 sm:my-16 px-2 sm:px-4">
              <div className="invoice-preview-wrapper">
                <div className="invoice-container-scaled">
                  <div ref={invoiceRef}>
@@ -174,18 +288,24 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                </div>
              </div>
 
-             <div className="w-full max-w-[500px] flex flex-col gap-4 px-4 pb-20">
+             <div className="w-full max-w-[500px] flex flex-col gap-3 sm:gap-4 px-2 sm:px-4 pb-24">
                 <button 
                   onClick={() => setAntesDepoisOs(selectedOrder)}
-                  className="w-full bg-[#FF2D55] text-white py-6 rounded-ios font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-4 shadow-2xl active:scale-95 italic transition-all border border-[#FF2D55] cursor-pointer"
+                  className="w-full bg-[#FF2D55] hover:bg-[#D11D40] text-white py-4 sm:py-5 rounded-ios font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 shadow-2xl active:scale-95 italic transition-all border border-[#FF2D55] cursor-pointer"
                 >
-                  <Camera size={22}/> VISTORIA FOTOGRÁFICA (ANTES & DEPOIS)
+                  <Camera size={20}/> VISTORIA FOTOGRÁFICA (ANTES & DEPOIS)
                 </button>
-                <button onClick={downloadImage} className="w-full bg-white text-black py-6 rounded-ios font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-4 shadow-2xl active:scale-95 italic transition-all">
-                   <ImageIcon size={24}/> SALVAR IMAGEM (WHATSAPP)
+                <button 
+                  onClick={downloadImage} 
+                  className="w-full bg-white hover:bg-zinc-200 text-black py-4 sm:py-5 rounded-ios font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 shadow-2xl active:scale-95 italic transition-all cursor-pointer"
+                >
+                   <ImageIcon size={20}/> SALVAR IMAGEM (WHATSAPP)
                 </button>
-                <button onClick={() => window.print()} className="glass-card py-6 rounded-ios font-black uppercase text-[10px] tracking-[0.4em] flex items-center justify-center gap-4 hover:bg-white/5 italic transition-all border-white/10 text-white">
-                   <Printer size={24}/> IMPRIMIR EM A4
+                <button 
+                  onClick={() => window.print()} 
+                  className="glass-card py-4 sm:py-5 rounded-ios font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-white/5 italic transition-all border-white/10 text-white cursor-pointer"
+                >
+                   <Printer size={20}/> IMPRIMIR EM A4
                 </button>
              </div>
           </div>

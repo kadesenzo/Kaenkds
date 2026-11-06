@@ -32,6 +32,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
 import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './src/lib/firebase';
+import { mergeUniqueById } from './src/lib/storage';
 
 // Global Cloud Sync Interceptor variables
 let isApplyingRemoteUpdate = false;
@@ -162,8 +163,24 @@ const App: React.FC = () => {
               for (const [k, v] of Object.entries(cloudFirestoreData)) {
                 if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
                 const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
-                localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, JSON.stringify(v));
-                localStorage.setItem(`kaenpro_rafael_${cleanKey}`, JSON.stringify(v));
+                
+                if (Array.isArray(v)) {
+                  let localArr: any[] = [];
+                  try {
+                    const raw = localStorage.getItem(`kaenpro_rafael_${cleanKey}`) || localStorage.getItem(`kaen_${cleanKey}`);
+                    if (raw) localArr = JSON.parse(raw);
+                  } catch (e) {}
+                  const merged = mergeUniqueById(localArr, v);
+                  const str = JSON.stringify(merged);
+                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
+                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
+                  localStorage.setItem(`kaen_${cleanKey}`, str);
+                } else {
+                  const str = JSON.stringify(v);
+                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
+                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
+                  localStorage.setItem(`kaen_${cleanKey}`, str);
+                }
               }
             } finally {
               isApplyingRemoteUpdate = false;
@@ -181,8 +198,23 @@ const App: React.FC = () => {
           isApplyingRemoteUpdate = true;
           try {
             for (const [key, value] of Object.entries(data)) {
-              localStorage.setItem(`kaenpro_${tenant}_${key}`, JSON.stringify(value));
-              localStorage.setItem(`kaenpro_rafael_${key}`, JSON.stringify(value));
+              if (Array.isArray(value)) {
+                let localArr: any[] = [];
+                try {
+                  const raw = localStorage.getItem(`kaenpro_rafael_${key}`) || localStorage.getItem(`kaen_${key}`);
+                  if (raw) localArr = JSON.parse(raw);
+                } catch (e) {}
+                const merged = mergeUniqueById(localArr, value);
+                const str = JSON.stringify(merged);
+                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
+                localStorage.setItem(`kaenpro_rafael_${key}`, str);
+                localStorage.setItem(`kaen_${key}`, str);
+              } else {
+                const str = JSON.stringify(value);
+                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
+                localStorage.setItem(`kaenpro_rafael_${key}`, str);
+                localStorage.setItem(`kaen_${key}`, str);
+              }
             }
           } finally {
             isApplyingRemoteUpdate = false;

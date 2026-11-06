@@ -8,6 +8,7 @@ import {
   Filter, Search, UserCheck, ShieldX, Check, AlertCircle, FileSpreadsheet, Cloud
 } from 'lucide-react';
 import { UserSession } from '../types';
+import CloudSyncBanner from '../components/CloudSyncBanner';
 
 interface AdminPanelProps {
   session?: UserSession;
@@ -895,6 +896,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                 </div>
               </div>
             </div>
+
+            {/* Cloud Database Persistence and Restore Banner */}
+            <CloudSyncBanner session={session} />
 
             {/* Simulated Live Interconnectivity Network Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
