@@ -61,7 +61,6 @@ const LandingPage: React.FC = () => {
         localStorage.setItem('kaenpro_rafael_clients', JSON.stringify(updatedClients));
         localStorage.setItem('kaen_clients', JSON.stringify(updatedClients));
         await saveWorkshopFieldToCloud('kaenpro_rafael_clients', updatedClients);
-        await saveWorkshopFieldToCloud('kaen_clients', updatedClients);
 
         // Also create preliminary vehicle entry
         const savedVehicles = JSON.parse(localStorage.getItem('kaenpro_rafael_vehicles') || localStorage.getItem('kaen_vehicles') || '[]');
@@ -95,7 +94,6 @@ const LandingPage: React.FC = () => {
     }
     try {
       await saveWorkshopFieldToCloud('kaenpro_rafael_appointments', updatedApps);
-      await saveWorkshopFieldToCloud('kaen_appointments', updatedApps);
     } catch (err) {
       // offline fallback
     }

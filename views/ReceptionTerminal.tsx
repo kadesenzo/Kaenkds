@@ -8,6 +8,7 @@ import { ServiceOrder, OSStatus, PaymentStatus, UserSession, Part, Client } from
 import Invoice from '../components/Invoice';
 import PatioCheckinModal from '../components/PatioCheckinModal';
 import AntesEDepoisModal from '../components/AntesEDepoisModal';
+import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 interface ReceptionTerminalProps {
   session?: UserSession;
@@ -27,22 +28,21 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
 
   // Load state and listen to local updates in real-time
   useEffect(() => {
-    if (session) {
-      const loadData = () => {
-        setOrders(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]'));
-        setParts(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_parts`) || '[]'));
-        setClients(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]'));
-      };
-      
-      loadData();
-      window.addEventListener('kaen_storage_updated', loadData);
-      // Polling as a robust safety fallback
-      const interval = setInterval(loadData, 3000);
-      return () => {
-        window.removeEventListener('kaen_storage_updated', loadData);
-        clearInterval(interval);
-      };
-    }
+    const loadData = () => {
+      const username = session?.username || 'rafael';
+      setOrders(getWorkshopData<ServiceOrder[]>('orders', username, []));
+      setParts(getWorkshopData<Part[]>('parts', username, []));
+      setClients(getWorkshopData<Client[]>('clients', username, []));
+    };
+    
+    loadData();
+    window.addEventListener('kaen_storage_updated', loadData);
+    // Polling as a robust safety fallback
+    const interval = setInterval(loadData, 3000);
+    return () => {
+      window.removeEventListener('kaen_storage_updated', loadData);
+      clearInterval(interval);
+    };
   }, [session]);
 
   const addLog = async (action: string) => {
@@ -176,17 +176,30 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
   };
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(o => 
-      o.clientName.toLowerCase().includes(search.toLowerCase()) ||
-      o.vehiclePlate.toLowerCase().includes(search.toLowerCase()) ||
-      o.osNumber.includes(search)
-    );
+    if (!search.trim()) return orders;
+    const raw = search.trim().toLowerCase();
+    const norm = search.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    return orders.filter(o => {
+      const plateClean = (o.vehiclePlate || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const model = (o.vehicleModel || '').toLowerCase();
+      const client = (o.clientName || '').toLowerCase();
+      const phone = (o.clientPhone || '').replace(/[^0-9]/g, '');
+      const osNum = (o.osNumber || '');
+
+      return (
+        plateClean.includes(norm) ||
+        (o.vehiclePlate || '').toLowerCase().includes(raw) ||
+        model.includes(raw) ||
+        client.includes(raw) ||
+        phone.includes(norm) ||
+        osNum.includes(raw)
+      );
+    });
   }, [orders, search]);
 
   // Group by status context for clear visibility
   const waitingReceptionCount = useMemo(() => {
-    // Orders marked as EN_ANDAMENTO but completed by mechanic can be marked with a special local property, OR are simply EN_ANDAMENTO waiting checkout.
-    // Let's look for orders where status is EM_ANDAMENTO but mechanic flagged them
     return orders.filter(o => o.status === OSStatus.EM_ANDAMENTO || o.problem.includes('CONCLUÍDO PELO MECÂNICO')).length;
   }, [orders]);
 
@@ -234,14 +247,23 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
             
             {/* Search filter */}
             <div className="relative bg-black/40 border border-white/5 rounded-full px-6 py-4 flex items-center mb-8">
-              <Search className="text-zinc-600 mr-4" size={20} />
+              <Search className="text-zinc-600 mr-4 shrink-0" size={20} />
               <input 
                 type="text" 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                placeholder="PROCURAR POR PLACA, STATUS OU CLIENTE..." 
+                placeholder="BUSCAR POR PLACA, CARRO, CLIENTE OU TELEFONE..." 
                 className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-white outline-none w-full placeholder-zinc-700"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="p-1.5 text-zinc-500 hover:text-white rounded-full bg-zinc-900 transition-colors cursor-pointer shrink-0 ml-2"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
             <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 no-scrollbar">

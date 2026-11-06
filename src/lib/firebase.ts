@@ -20,12 +20,48 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
+let quotaExhaustedInMemory = false;
+
+export function isQuotaExhausted(): boolean {
+  if (quotaExhaustedInMemory) return true;
+  if (typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem('kaen_firestore_quota_exhausted');
+    if (stored) {
+      const timestamp = parseInt(stored, 10);
+      // Reset check after 6 hours
+      if (Date.now() - timestamp < 6 * 60 * 60 * 1000) {
+        quotaExhaustedInMemory = true;
+        return true;
+      } else {
+        sessionStorage.removeItem('kaen_firestore_quota_exhausted');
+      }
+    }
+  }
+  return false;
+}
+
+export function markQuotaExhausted() {
+  quotaExhaustedInMemory = true;
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
+      window.dispatchEvent(new CustomEvent('kaen_quota_status_changed', { detail: { exhausted: true } }));
+    } catch (e) {}
+  }
+}
+
 // Validate connection to Firestore as mandated by skill
 if (typeof window !== 'undefined') {
   async function testConnection() {
+    if (isQuotaExhausted()) return;
     try {
       await getDocFromServer(doc(db, 'test', 'connection'));
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if ((error as any)?.code === 'resource-exhausted' || errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
+        markQuotaExhausted();
+        return;
+      }
       if (error instanceof Error && error.message.includes('the client is offline')) {
         console.warn("Aviso de conectividade Firebase Firestore:", error.message);
       }
@@ -73,9 +109,27 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export function getQuotaUpgradeUrl(): string {
+  const projectId = firebaseConfig.projectId || 'inner-cortex-507pf';
+  const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+  return `https://console.firebase.google.com/project/${projectId}/firestore/databases/${dbId}/data?openUpgradeDialog=true`;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isQuota = (error as any)?.code === 'resource-exhausted' || 
+                  errMsg.includes('resource-exhausted') || 
+                  errMsg.includes('Quota limit exceeded') || 
+                  errMsg.includes('quota metric');
+
+  if (isQuota) {
+    markQuotaExhausted();
+    console.warn("⚠️ [Firestore] Cota diária do banco de dados na nuvem atingida. O sistema continua funcionando normalmente gravando localmente e via servidor backend Express/Node para não travar a oficina.");
+    return;
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: 'rafael',
       email: 'automecanicakaen@gmail.com',
@@ -91,24 +145,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 /**
  * Save specific workshop dataset to Firestore
- * Writes both to main shared document and collection document for 100% cloud durability
+ * Streamlined to 1 single write to avoid consuming free tier quotas
  */
 export async function saveWorkshopFieldToCloud(key: string, value: any): Promise<void> {
+  if (isQuotaExhausted()) return;
+
   const pathForWrite = `workshops/${WORKSHOP_DOC_ID}`;
   try {
     const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
     await setDoc(docRef, { [key]: value, lastUpdatedAt: new Date().toISOString() }, { merge: true });
-
-    // Also persist to collection-level document to guard against 1MB single-document limits
-    const cleanKey = key.replace(/^kaenpro_[^_]+_/, '');
-    if (cleanKey && cleanKey !== key) {
-      try {
-        const colRef = doc(db, 'workshop_collections', cleanKey);
-        await setDoc(colRef, { data: value, key: cleanKey, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (colErr) {
-        console.warn("Secondary collection write warning:", colErr);
-      }
-    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, pathForWrite);
   }
@@ -118,6 +163,8 @@ export async function saveWorkshopFieldToCloud(key: string, value: any): Promise
  * Fetch all workshop data from Firestore
  */
 export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, any> | null> {
+  if (isQuotaExhausted()) return null;
+
   const pathForGet = `workshops/${WORKSHOP_DOC_ID}`;
   try {
     const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
@@ -126,20 +173,6 @@ export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, an
     if (snap.exists()) {
       result = { ...snap.data() };
     }
-
-    // Also read collection-level documents if available to ensure full coverage
-    try {
-      const colSnaps = await getDocs(collection(db, 'workshop_collections'));
-      colSnaps.forEach((d) => {
-        const colData = d.data();
-        if (colData && typeof colData.data !== 'undefined') {
-          result[`kaenpro_rafael_${d.id}`] = colData.data;
-        }
-      });
-    } catch (e) {
-      // non-blocking
-    }
-
     return Object.keys(result).length > 0 ? result : null;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, pathForGet);
@@ -152,21 +185,29 @@ export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, an
  * Returns an unsubscribe function
  */
 export function subscribeToWorkshopCloud(onUpdate: (data: Record<string, any>) => void): () => void {
+  if (isQuotaExhausted()) {
+    return () => {};
+  }
+
   const pathForSubscribe = `workshops/${WORKSHOP_DOC_ID}`;
   const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
   
-  return onSnapshot(
-    docRef, 
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data() as Record<string, any>;
-        onUpdate(data);
+  try {
+    return onSnapshot(
+      docRef, 
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data() as Record<string, any>;
+          onUpdate(data);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, pathForSubscribe);
       }
-    },
-    (error) => {
-      handleFirestoreError(error, OperationType.GET, pathForSubscribe);
-    }
-  );
+    );
+  } catch (e) {
+    return () => {};
+  }
 }
 
 export default db;

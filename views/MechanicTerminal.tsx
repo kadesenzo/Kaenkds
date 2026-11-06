@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Wrench, 
   Car, 
@@ -21,11 +21,16 @@ import {
   ChevronRight,
   User,
   Camera,
-  UserPlus
+  UserPlus,
+  Phone,
+  Flame,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, OSItem, ServiceOrder, OSStatus, PaymentStatus, VehicleChecklist, UserSession } from '../types';
 import AntesEDepoisModal from '../components/AntesEDepoisModal';
+import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 interface MechanicTerminalProps {
   session?: UserSession;
@@ -38,6 +43,8 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
   const [showInstructions, setShowInstructions] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [filterMode, setFilterMode] = useState<'ALL' | 'PATIO'>('ALL');
   
   const [search, setSearch] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -175,22 +182,78 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
   };
 
   useEffect(() => {
-    if (session) {
-      const load = () => {
-        setVehicles(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]'));
-        setClients(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]'));
-      };
-      
-      load();
-      window.addEventListener('kaen_storage_updated', load);
-      return () => window.removeEventListener('kaen_storage_updated', load);
-    }
+    const load = () => {
+      const username = session?.username || 'rafael';
+      setVehicles(getWorkshopData<Vehicle[]>('vehicles', username, []));
+      setClients(getWorkshopData<Client[]>('clients', username, []));
+      setOrders(getWorkshopData<ServiceOrder[]>('orders', username, []));
+    };
+    
+    load();
+    window.addEventListener('kaen_storage_updated', load);
+    return () => window.removeEventListener('kaen_storage_updated', load);
   }, [session]);
 
-  const filteredVehicles = search.length > 1 ? vehicles.filter(v => 
-    v.plate.toLowerCase().includes(search.toLowerCase()) ||
-    v.model.toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const normalizedSearch = search.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const vehiclesWithDetails = useMemo(() => {
+    return vehicles.map(v => {
+      const client = clients.find(c => c.id === v.clientId);
+      const activeOrder = orders.find(o => 
+        o.vehicleId === v.id && 
+        o.status !== OSStatus.FINALIZADO && 
+        o.status !== OSStatus.CANCELADO
+      );
+      return {
+        ...v,
+        client,
+        activeOrder
+      };
+    });
+  }, [vehicles, clients, orders]);
+
+  const patioVehiclesCount = useMemo(() => {
+    return vehiclesWithDetails.filter(v => !!v.activeOrder).length;
+  }, [vehiclesWithDetails]);
+
+  const filteredVehicles = useMemo(() => {
+    let list = vehiclesWithDetails;
+
+    // Filter by Patio tab if active
+    if (filterMode === 'PATIO') {
+      list = list.filter(v => !!v.activeOrder);
+    }
+
+    if (!search.trim()) {
+      // Sort: cars with active orders first, then most recently added
+      return [...list].sort((a, b) => {
+        if (a.activeOrder && !b.activeOrder) return -1;
+        if (!a.activeOrder && b.activeOrder) return 1;
+        return 0;
+      });
+    }
+
+    const raw = search.trim().toLowerCase();
+
+    return list.filter(v => {
+      const plateClean = (v.plate || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const modelClean = (v.model || '').toLowerCase();
+      const brandClean = (v.brand || '').toLowerCase();
+      const clientName = (v.client?.name || '').toLowerCase();
+      const clientPhoneClean = (v.client?.phone || '').replace(/[^0-9]/g, '');
+      const osNumber = (v.activeOrder?.osNumber || '');
+
+      return (
+        plateClean.includes(normalizedSearch) ||
+        (v.plate || '').toLowerCase().includes(raw) ||
+        modelClean.includes(raw) ||
+        brandClean.includes(raw) ||
+        clientName.includes(raw) ||
+        clientPhoneClean.includes(normalizedSearch) ||
+        osNumber.includes(raw)
+      );
+    });
+  }, [vehiclesWithDetails, filterMode, search, normalizedSearch]);
 
   const handleSelectVehicle = (v: Vehicle) => {
     setSelectedVehicle(v);
@@ -417,73 +480,182 @@ const MechanicTerminal: React.FC<MechanicTerminalProps> = ({ session, syncData }
       </div>
 
       {!selectedVehicle ? (
-        <div className="bg-[#0F0F0F] border border-[#1F1F1F] p-8 rounded-[2.5rem] shadow-xl space-y-8">
-          <div className="text-center">
-            <h2 className="text-xl font-black uppercase tracking-tighter mb-2 italic">Acessar Veículo</h2>
-            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Placa ou Modelo para começar</p>
+        <div className="bg-[#0F0F0F] border border-[#1F1F1F] p-5 sm:p-8 rounded-[2.5rem] shadow-xl space-y-6">
+          <div className="text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1F1F1F] pb-6">
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tight italic text-white flex items-center justify-center sm:justify-start gap-2">
+                <Car className="text-[#E11D48]" size={24} />
+                <span>Localizar Carro ou Cliente</span>
+              </h2>
+              <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                Busca instantânea por placa, modelo do carro, nome do cliente ou telefone
+              </p>
+            </div>
+
+            {/* Quick Action to Add Client/Car */}
+            <div className="flex items-center gap-2 justify-center">
+              <button 
+                onClick={() => {
+                  setVPlate(search.toUpperCase());
+                  setShowRegisterClientModal(true);
+                }}
+                className="px-4 py-2.5 bg-[#E11D48] hover:bg-[#be123c] text-white rounded-xl font-black uppercase text-[10px] tracking-wider flex items-center gap-2 active:scale-95 transition-all cursor-pointer shadow-lg shadow-rose-950/40"
+              >
+                <UserPlus size={14} />
+                <span>+ Novo Cliente / Carro</span>
+              </button>
+            </div>
           </div>
           
-          <div className="relative">
-            <input 
-              type="text" 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Ex: ABC-1234..."
-              className="w-full bg-[#050505] border-2 border-[#1F1F1F] rounded-[2rem] px-8 py-7 text-xl text-white font-black placeholder-zinc-800 focus:border-[#E11D48] outline-none transition-all uppercase tracking-widest text-center"
-            />
-            
-            {filteredVehicles.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-4 bg-[#0F0F0F] border border-[#1F1F1F] rounded-[2rem] overflow-hidden z-50 shadow-2xl max-h-[300px] overflow-y-auto">
+          {/* Barra de Pesquisa Rápida */}
+          <div className="space-y-4">
+            <div className="relative flex items-center">
+              <Search className="absolute left-5 text-zinc-500 pointer-events-none" size={22} />
+              <input 
+                type="text" 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="DIGITE A PLACA, MODELO OU NOME DO CLIENTE..."
+                className="w-full bg-[#050505] border-2 border-[#1F1F1F] focus:border-[#E11D48] rounded-2xl pl-14 pr-12 py-5 text-sm sm:text-base text-white font-black placeholder-zinc-700 outline-none transition-all uppercase tracking-wider shadow-inner"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-4 p-2 text-zinc-500 hover:text-white rounded-full bg-zinc-900 transition-colors cursor-pointer"
+                  title="Limpar busca"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Filtros Rápidos (Pátio / Todos) */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider mr-1">
+                Filtrar:
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilterMode('ALL')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  filterMode === 'ALL'
+                    ? 'bg-white text-black shadow-md'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-white/5'
+                }`}
+              >
+                🚗 Todos os Veículos ({vehicles.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode('PATIO')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                  filterMode === 'PATIO'
+                    ? 'bg-[#E11D48] text-white shadow-lg shadow-rose-950/40'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-white/5'
+                }`}
+              >
+                <Flame size={12} className={filterMode === 'PATIO' ? 'text-white' : 'text-[#E11D48]'} />
+                <span>No Pátio / Em Serviço ({patioVehiclesCount})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de Veículos & Clientes */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between text-zinc-500 text-[10px] font-black uppercase tracking-wider px-1">
+              <span>
+                {search ? `Resultados da busca (${filteredVehicles.length})` : filterMode === 'PATIO' ? `Veículos no Pátio (${filteredVehicles.length})` : `Veículos Cadastrados (${filteredVehicles.length})`}
+              </span>
+              <span>1 Toque para Abrir</span>
+            </div>
+
+            {filteredVehicles.length === 0 ? (
+              <div className="p-8 sm:p-12 border-2 border-dashed border-[#1F1F1F] rounded-3xl text-center space-y-4 bg-black/40">
+                <Car size={36} className="text-zinc-600 mx-auto" />
+                <div>
+                  <p className="text-sm font-black uppercase text-zinc-300">
+                    {search ? `Nenhum veículo ou cliente encontrado com "${search}"` : 'Nenhum veículo cadastrado ainda'}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    Cadastre o cliente e o carro agora mesmo para iniciar o atendimento.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => {
+                      setVPlate(search.toUpperCase());
+                      setShowRegisterClientModal(true);
+                    }}
+                    className="px-6 py-3 bg-[#E11D48] hover:bg-[#be123c] text-white rounded-xl font-black text-xs uppercase tracking-wider cursor-pointer"
+                  >
+                    + Cadastrar "{search.toUpperCase() || 'Novo Carro'}"
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-1">
                 {filteredVehicles.map(v => (
                   <button 
                     key={v.id} 
                     onClick={() => handleSelectVehicle(v)} 
-                    className="w-full p-6 flex items-center justify-between hover:bg-zinc-900 border-b border-[#1F1F1F] last:border-none active:bg-[#E11D48] group"
+                    className="p-4 sm:p-5 bg-black/60 hover:bg-zinc-900 border border-white/10 hover:border-[#E11D48]/60 rounded-2xl flex flex-col justify-between gap-3 transition-all active:scale-[0.98] cursor-pointer text-left group shadow-lg"
                   >
-                    <div className="text-left">
-                      <p className="font-black text-white uppercase text-lg group-active:text-white">{v.plate}</p>
-                      <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest group-active:text-white/70">{v.model}</p>
+                    {/* Top Row: Plate + Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      {/* Placa em Formato Placa Automotiva */}
+                      <div className="bg-zinc-950 border-2 border-zinc-700 group-hover:border-[#E11D48] rounded-lg px-3 py-1 shadow-inner">
+                        <div className="text-[7px] font-black uppercase text-blue-400 tracking-wider">BRASIL</div>
+                        <span className="font-mono font-black text-base sm:text-lg text-white tracking-widest uppercase">
+                          {v.plate}
+                        </span>
+                      </div>
+
+                      {/* Status Badge */}
+                      {v.activeOrder ? (
+                        <span className="px-2.5 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                          ● No Pátio (OS #{v.activeOrder.osNumber})
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded-lg text-[9px] font-bold uppercase tracking-wider">
+                          Histórico
+                        </span>
+                      )}
                     </div>
-                    <ChevronRight size={20} className="text-[#E11D48] group-active:text-white" />
+
+                    {/* Middle: Car Model & KM */}
+                    <div>
+                      <h4 className="text-sm sm:text-base font-black text-white uppercase italic tracking-tight group-hover:text-[#E11D48] transition-colors">
+                        {v.model}
+                      </h4>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
+                        {v.brand ? `${v.brand} • ` : ''}{v.year ? `${v.year} • ` : ''}<span className="text-zinc-300 font-mono">{v.km ? `${v.km.toLocaleString('pt-BR')} KM` : 'KM não informado'}</span>
+                      </p>
+                    </div>
+
+                    {/* Bottom: Client Name & Phone */}
+                    <div className="pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-zinc-300 font-bold truncate">
+                        <User size={13} className="text-[#E11D48] shrink-0" />
+                        <span className="truncate">{v.client?.name || 'Cliente não vinculado'}</span>
+                      </div>
+                      {v.client?.phone && (
+                        <div className="flex items-center gap-1 text-emerald-400 font-mono text-[10px] font-bold shrink-0 ml-2">
+                          <Phone size={11} />
+                          <span>{v.client.phone}</span>
+                        </div>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="border-t border-[#1F1F1F] pt-8 space-y-6">
-            <div className="text-center">
-              <p className="text-[9px] font-black uppercase text-zinc-500 tracking-[0.2em] mb-1">Não encontrou o veículo na lista?</p>
-              <p className="text-[8px] font-bold text-zinc-700 uppercase tracking-widest">Seja o primeiro a registrá-lo no banco de dados sincronizado.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button 
-                onClick={() => {
-                  setVPlate(search.toUpperCase());
-                  setShowRegisterClientModal(true);
-                }}
-                className="bg-zinc-950 hover:bg-zinc-900 border border-[#1F1F1F] hover:border-[#E11D48]/50 text-white font-black uppercase text-[10px] tracking-widest py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-95"
-              >
-                <UserPlus size={16} className="text-[#E11D48] group-hover:scale-125 transition-all" />
-                <span>Novo Cliente + Carro</span>
-              </button>
-              <button 
-                onClick={() => {
-                  setVPlate(search.toUpperCase());
-                  setShowRegisterVehicleModal(true);
-                }}
-                className="bg-zinc-950 hover:bg-zinc-900 border border-[#1F1F1F] hover:border-[#E11D48]/50 text-white font-black uppercase text-[10px] tracking-widest py-5 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-95"
-              >
-                <Car size={16} className="text-[#E11D48] group-hover:scale-125 transition-all" />
-                <span>Novo Carro Avulso</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-6 opacity-30 pt-10">
-            <Smartphone size={40} className="text-zinc-600" />
+          <div className="flex flex-col items-center gap-4 opacity-30 pt-6">
+            <Smartphone size={32} className="text-zinc-600" />
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 text-center leading-relaxed">
-              Desenvolvido para máxima rapidez<br/>dentro da oficina.
+              Desenvolvido para máxima rapidez na oficina.
             </p>
           </div>
         </div>

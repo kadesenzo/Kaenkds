@@ -87,19 +87,33 @@ export async function saveWorkshopData<T>(key: string, data: T, username?: strin
   const tenant = username || 'rafael';
   const serialized = JSON.stringify(data);
 
-  localStorage.setItem(`kaenpro_rafael_${key}`, serialized);
-  localStorage.setItem(`kaenpro_${tenant}_${key}`, serialized);
-  localStorage.setItem(`kaen_${key}`, serialized);
+  // Prevent localStorage interceptor loops
+  const setUpdating = (window as any).__kaen_set_remote_updating;
+  if (setUpdating) setUpdating(true);
+  try {
+    localStorage.setItem(`kaenpro_rafael_${key}`, serialized);
+    localStorage.setItem(`kaenpro_${tenant}_${key}`, serialized);
+    localStorage.setItem(`kaen_${key}`, serialized);
+  } finally {
+    if (setUpdating) setUpdating(false);
+  }
 
-  // Direct Firestore cloud write
+  // 1. Sync via Express server API (persisted to kaen_db.json & SSE pushed)
+  try {
+    await fetch(`/api/sync/${tenant}/${key}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: serialized
+    });
+  } catch (e) {
+    // Non-blocking local fallback
+  }
+
+  // 2. Direct Firestore cloud backup write (single write, skipped if quota exhausted)
   try {
     await saveWorkshopFieldToCloud(`kaenpro_rafael_${key}`, data);
-    if (tenant !== 'rafael') {
-      await saveWorkshopFieldToCloud(`kaenpro_${tenant}_${key}`, data);
-    }
-    await saveWorkshopFieldToCloud(`kaen_${key}`, data);
   } catch (err) {
-    console.warn("Cloud save queued:", err);
+    // Graceful offline/local fallback
   }
 
   // Trigger cross-component reactive update

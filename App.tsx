@@ -36,11 +36,17 @@ import { mergeUniqueById } from './src/lib/storage';
 
 // Global Cloud Sync Interceptor variables
 let isApplyingRemoteUpdate = false;
+if (typeof window !== 'undefined') {
+  (window as any).__kaen_set_remote_updating = (val: boolean) => {
+    isApplyingRemoteUpdate = val;
+  };
+}
 const debounceTimers: Record<string, any> = {};
 
 function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   if (isApplyingRemoteUpdate) return;
-  if (!key.startsWith('kaenpro_') && !key.startsWith('kaen_')) return;
+  // Guard: Only process the master shared namespace key once to avoid write amplification
+  if (!key.startsWith('kaenpro_rafael_')) return;
 
   if (debounceTimers[key]) {
     clearTimeout(debounceTimers[key]);
@@ -49,14 +55,11 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   debounceTimers[key] = setTimeout(async () => {
     try {
       const parsed = JSON.parse(value);
-      const cleanKey = key.replace(/^kaenpro_[^_]+_/, '').replace(/^kaen_/, '');
+      const cleanKey = key.replace(/^kaenpro_rafael_/, '');
       const sharedKey = `kaenpro_rafael_${cleanKey}`;
 
-      // 1. Direct Firestore cloud persistence
+      // 1. Direct Firestore cloud persistence (guarded by quota circuit breaker)
       await saveWorkshopFieldToCloud(sharedKey, parsed);
-      if (key !== sharedKey) {
-        await saveWorkshopFieldToCloud(key, parsed);
-      }
 
       // 2. Server API sync & real-time broadcast
       await fetch(`/api/sync/${tenant || 'rafael'}/${cleanKey}`, {
@@ -67,7 +70,7 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
     } catch (err) {
       // ignore parse or network error
     }
-  }, 350);
+  }, 500);
 }
 
 const App: React.FC = () => {
@@ -390,9 +393,9 @@ const App: React.FC = () => {
           }
         }
 
-        // Direct Firestore writes
+        // Direct Firestore writes - only master shared keys to conserve daily quota
         for (const [k, val] of Object.entries(allLocalData)) {
-          if (val !== null && typeof val !== 'undefined') {
+          if (k.startsWith('kaenpro_rafael_') && val !== null && typeof val !== 'undefined') {
             await saveWorkshopFieldToCloud(k, val);
           }
         }
