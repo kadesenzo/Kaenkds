@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Trash2, X, Eye, 
-  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car, Camera, Filter, Plus, CalendarDays
+  Printer, ImageIcon, Wrench, Calendar, CreditCard, ChevronRight, Car, Camera, Filter, Plus, CalendarDays, Pencil
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ServiceOrder, UserSession, OSStatus, PaymentStatus } from '../types';
 import html2canvas from 'html2canvas';
 import Invoice from '../components/Invoice';
 import AntesEDepoisModal from '../components/AntesEDepoisModal';
+import EditOrderModal from '../components/EditOrderModal';
 import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?: (key: string, data: any) => Promise<void> }> = ({ role = 'Dono', session, syncData }) => {
@@ -16,6 +17,7 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [antesDepoisOs, setAntesDepoisOs] = useState<ServiceOrder | null>(null);
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'>('ALL');
   const [startDate, setStartDate] = useState('');
@@ -254,6 +256,16 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                    setEditingOrder(os);
+                  }}
+                  className="p-4 bg-white/5 text-amber-400 hover:text-black hover:bg-amber-400 rounded-2xl border border-white/10 hover:border-amber-400/40 transition-all shadow-xl active:scale-90 cursor-pointer"
+                  title="Editar Dados desta Nota (Telefone, KM, Itens, etc.)"
+                >
+                  <Pencil size={20}/>
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setAntesDepoisOs(os);
                   }}
                   className="p-4 bg-white/5 text-zinc-400 hover:text-emerald-400 rounded-2xl border border-white/10 hover:border-emerald-500/30 transition-all shadow-xl active:scale-90 cursor-pointer"
@@ -261,8 +273,8 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                 >
                   <Camera size={20}/>
                 </button>
-                <button onClick={() => setSelectedOrder(os)} className="p-4 bg-white/5 text-[#FF2D55] rounded-2xl border border-white/10 hover:bg-[#FF2D55] hover:text-white transition-all shadow-xl active:scale-90"><Eye size={20}/></button>
-                {role === 'Dono' && <button onClick={() => handleDelete(os.id)} className="p-4 bg-white/5 text-zinc-650 hover:text-[#FF2D55] rounded-2xl border border-white/10 transition-all active:scale-90"><Trash2 size={20}/></button>}
+                <button onClick={() => setSelectedOrder(os)} className="p-4 bg-white/5 text-[#FF2D55] rounded-2xl border border-white/10 hover:bg-[#FF2D55] hover:text-white transition-all shadow-xl active:scale-90" title="Visualizar Nota"><Eye size={20}/></button>
+                {role === 'Dono' && <button onClick={() => handleDelete(os.id)} className="p-4 bg-white/5 text-zinc-650 hover:text-[#FF2D55] rounded-2xl border border-white/10 transition-all active:scale-90" title="Excluir Nota"><Trash2 size={20}/></button>}
               </div>
             </div>
           </div>
@@ -288,7 +300,17 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                </div>
              </div>
 
-             <div className="w-full max-w-[500px] flex flex-col gap-3 sm:gap-4 px-2 sm:px-4 pb-24">
+              <div className="w-full max-w-[500px] flex flex-col gap-3 sm:gap-4 px-2 sm:px-4 pb-24">
+                <button 
+                  onClick={() => {
+                    const toEdit = selectedOrder;
+                    setSelectedOrder(null);
+                    setEditingOrder(toEdit);
+                  }}
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-black py-4 sm:py-5 rounded-ios font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 shadow-2xl active:scale-95 italic transition-all cursor-pointer"
+                >
+                  <Pencil size={20}/> EDITAR DADOS DA NOTA (TELEFONE, KM & ITENS)
+                </button>
                 <button 
                   onClick={() => setAntesDepoisOs(selectedOrder)}
                   className="w-full bg-[#FF2D55] hover:bg-[#D11D40] text-white py-4 sm:py-5 rounded-ios font-black uppercase text-[10px] tracking-[0.3em] flex items-center justify-center gap-3 shadow-2xl active:scale-95 italic transition-all border border-[#FF2D55] cursor-pointer"
@@ -310,6 +332,23 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
              </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Edição de Nota */}
+      {editingOrder && (
+        <EditOrderModal
+          isOpen={!!editingOrder}
+          onClose={() => setEditingOrder(null)}
+          order={editingOrder}
+          session={session}
+          syncData={syncData}
+          onOrderUpdated={(updated) => {
+            loadData();
+            if (selectedOrder && selectedOrder.id === updated.id) {
+              setSelectedOrder(updated);
+            }
+          }}
+        />
       )}
 
       {/* Modal Antes e Depois */}

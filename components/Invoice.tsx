@@ -8,7 +8,9 @@ interface InvoiceProps {
 }
 
 const Invoice: React.FC<InvoiceProps> = ({ os }) => {
-  const totalItems = os.items.length + (os.laborValue > 0 ? 1 : 0);
+  // Purge any blank/empty item boxes automatically
+  const validItems = (os.items || []).filter(item => item && item.description && item.description.trim() !== '');
+  const totalItems = validItems.length + (os.laborValue > 0 ? 1 : 0);
   
   let densityClass = '';
   if (totalItems > 18) densityClass = 'micro-mode';
@@ -77,8 +79,8 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
             </tr>
           </thead>
           <tbody>
-            {os.items.map((item, idx) => (
-              <tr key={idx}>
+            {validItems.map((item, idx) => (
+              <tr key={item.id || idx}>
                 <td className="col-desc">{item.description}</td>
                 <td className="col-qtd">{item.quantity}</td>
                 <td className="col-unit">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>

@@ -4,7 +4,6 @@ import { Users, Search, UserPlus, Phone, FileText, ChevronRight, X, User, Messag
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, ServiceOrder, UserSession } from '../types';
 import { getWorkshopData, saveWorkshopData, mergeUniqueById } from '../src/lib/storage';
-import CloudSyncBanner from '../components/CloudSyncBanner';
 
 interface ClientsProps {
   role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
@@ -118,9 +117,6 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 w-full pb-16">
-      {/* Cloud Protection Banner */}
-      <CloudSyncBanner session={session} />
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">Clientes Cadastrados</h1>

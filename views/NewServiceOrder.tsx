@@ -79,12 +79,22 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
     if (!selectedClient || !selectedVehicle || !session || !syncData) return;
     setIsSaving(true);
     try {
+      // Auto-purge any empty item boxes (quadrados em branco)
+      const validItems = items.filter(i => i.description && i.description.trim() !== '');
+      if (validItems.length === 0 && (!labor || parseFloat(labor) === 0)) {
+        alert("Atenção: Adicione a descrição de ao menos um serviço/peça ou informe o valor de mão de obra.");
+        setIsSaving(false);
+        return;
+      }
+      setItems(validItems);
+
+      const itemsTotal = validItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
+      const computedTotal = itemsTotal + (parseFloat(labor) || 0);
+
       // Subtract parts from inventory
       let updatedParts = [...parts];
-      items.forEach(item => {
+      validItems.forEach(item => {
         if (item.type === 'PART') {
-          // Find part by description (primitive match) or SKU if we had it
-          // For now, let's assume we match by exact description if they picked from inventory
           const pIndex = updatedParts.findIndex(p => p.name.toUpperCase() === item.description.toUpperCase());
           if (pIndex !== -1) {
             updatedParts[pIndex] = {
@@ -111,10 +121,10 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         vehicleModel: selectedVehicle.model,
         vehicleKm: selectedVehicle.km.toString(),
         problem: 'MANUTENÇÃO TÉCNICA KAEN',
-        items,
+        items: validItems,
         laborValue: parseFloat(labor) || 0,
         discount: 0,
-        totalValue,
+        totalValue: computedTotal,
         status: OSStatus.FINALIZADO,
         paymentStatus,
         createdAt: new Date().toISOString(),
@@ -488,6 +498,24 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                )}
 
                <div className="space-y-4">
+                 {items.some(i => !i.description || i.description.trim() === '') && (
+                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-2xl">
+                     <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                       <span>💡</span>
+                       <span>
+                         {items.filter(i => !i.description || i.description.trim() === '').length}{' '}
+                         caixa(s) em branco detectada(s). Ao salvar a nota, o sistema apaga automaticamente!
+                       </span>
+                     </div>
+                     <button
+                       type="button"
+                       onClick={() => setItems(items.filter(i => i.description && i.description.trim() !== ''))}
+                       className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer self-start sm:self-auto"
+                     >
+                       Apagar Vazias Agora
+                     </button>
+                   </div>
+                 )}
                  {items.length === 0 && (
                    <p className="text-xs text-zinc-500 text-center py-6 border border-dashed border-white/10 rounded-2xl">
                      Nenhum item na nota. Clique em um dos atalhos rápidos acima ou em "NOVO ITEM".
