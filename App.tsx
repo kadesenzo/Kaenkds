@@ -562,8 +562,8 @@ const App: React.FC = () => {
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
         <Route path="/dashboard" element={<PrivateLayout><Dashboard /></PrivateLayout>} />
         <Route path="/calendar" element={<PrivateLayout><Calendar /></PrivateLayout>} />
-        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} /></PrivateLayout>} />
-        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder /></PrivateLayout>} />
+        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/billing" element={<PrivateLayout><Billing /></PrivateLayout>} />
         <Route path="/financial" element={<PrivateLayout><Financial /></PrivateLayout>} />
         <Route path="/inventory" element={<PrivateLayout><Inventory /></PrivateLayout>} />
