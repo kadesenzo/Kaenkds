@@ -8,8 +8,15 @@ interface InvoiceProps {
 }
 
 const Invoice: React.FC<InvoiceProps> = ({ os }) => {
-  // Purge any blank/empty item boxes automatically
-  const validItems = (os.items || []).filter(item => item && item.description && item.description.trim() !== '');
+  // Ensure all items with description or price are displayed
+  const validItems = (os.items || [])
+    .filter(item => item && ((item.description && item.description.trim() !== '') || (item.unitPrice || 0) > 0 || (item.quantity || 0) > 0))
+    .map((item, idx) => ({
+      ...item,
+      description: (item.description && item.description.trim() !== '') 
+        ? item.description 
+        : `SERVIÇO MECÂNICO #${idx + 1}`
+    }));
   const totalItems = validItems.length + (os.laborValue > 0 ? 1 : 0);
   
   let densityClass = '';

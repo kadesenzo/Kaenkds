@@ -28,7 +28,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
   const navigate = useNavigate();
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // Fallback to active session in storage so note creation never hangs even if prop is missing
+  // Fallback to active session in storage so note creation never hangs
   const activeSession = session || (typeof window !== 'undefined' && sessionStorage.getItem('kaen_session') ? JSON.parse(sessionStorage.getItem('kaen_session') || '{}') : null);
   const tenant = activeSession?.username || 'rafael';
   
@@ -50,7 +50,10 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
   const [quickClient, setQuickClient] = useState({ name: '', phone: '' });
   const [quickVehicle, setQuickVehicle] = useState({ model: '', plate: '', km: '' });
   
-  const [items, setItems] = useState<OSItem[]>([]);
+  // Initialize with at least 1 ready item row so items are never empty or missing
+  const [items, setItems] = useState<OSItem[]>([
+    { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }
+  ]);
   const [labor, setLabor] = useState<string>('0');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(PaymentStatus.PENDENTE);
   
@@ -71,6 +74,42 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
     window.addEventListener('kaen_storage_updated', loadData);
     return () => window.removeEventListener('kaen_storage_updated', loadData);
   }, [tenant]);
+
+  // Safe client fallback
+  const effectiveClient = useMemo(() => {
+    if (selectedClient) return selectedClient;
+    if (clients.length > 0) return clients[0];
+    return {
+      id: 'c_balcao',
+      name: 'CLIENTE BALCÃO',
+      phone: '(13) 99689-2958',
+      document: '---',
+      observations: 'CLIENTE BALCÃO / AVULSO',
+      createdAt: new Date().toISOString()
+    };
+  }, [selectedClient, clients]);
+
+  // Filter vehicles for selected client
+  const clientVehicles = useMemo(() => {
+    if (!selectedClient) return [];
+    return vehicles.filter(v => v.clientId === selectedClient.id);
+  }, [vehicles, selectedClient]);
+
+  // Safe vehicle fallback
+  const effectiveVehicle = useMemo(() => {
+    if (selectedVehicle) return selectedVehicle;
+    if (clientVehicles.length > 0) return clientVehicles[0];
+    if (vehicles.length > 0) return vehicles[0];
+    return {
+      id: 'v_padrao',
+      clientId: effectiveClient.id,
+      model: 'VEÍCULO PADRÃO',
+      plate: 'SEM-PLACA',
+      brand: '---',
+      year: '---',
+      km: 0
+    };
+  }, [selectedVehicle, clientVehicles, vehicles, effectiveClient]);
 
   const totalValue = useMemo(() => {
     const itemsTotal = items.reduce((acc, curr) => acc + ((curr.quantity || 0) * (curr.unitPrice || 0)), 0);
@@ -133,20 +172,24 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
     }
   };
 
+  // Skip vehicle and go straight to items
+  const handleSkipVehicleToItems = () => {
+    if (!selectedVehicle) {
+      setSelectedVehicle(effectiveVehicle);
+    }
+    setStep('ITENS');
+  };
+
   // Handle quick vehicle creation with immediate advancement
   const handleCreateQuickVehicle = () => {
-    if (!selectedClient) {
-      alert("Selecione um cliente primeiro.");
-      setStep('CLIENTE');
-      return;
-    }
+    const parentClient = selectedClient || effectiveClient;
     const plate = quickVehicle.plate.trim() ? quickVehicle.plate.trim().toUpperCase() : 'SEM PLACA';
     const model = quickVehicle.model.trim() ? quickVehicle.model.trim().toUpperCase() : 'VEÍCULO DIVERSOS';
     const km = parseFloat(quickVehicle.km) || 0;
 
     const newV: Vehicle = {
       id: Math.random().toString(36).substr(2, 9),
-      clientId: selectedClient.id,
+      clientId: parentClient.id,
       model,
       plate,
       brand: '---',
@@ -159,6 +202,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
     saveWorkshopData('vehicles', updated, tenant);
     if (syncData) syncData('vehicles', updated).catch(console.warn);
 
+    if (!selectedClient) setSelectedClient(parentClient);
     setSelectedVehicle(newV);
     setShowQuickVehicle(false);
     setQuickVehicle({ model: '', plate: '', km: '' });
@@ -167,23 +211,25 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
 
   // Conclude and generate final invoice immediately
   const handleFinalize = async () => {
-    if (!selectedClient) {
-      alert("Selecione um cliente para gerar a nota.");
-      setStep('CLIENTE');
-      return;
-    }
-    if (!selectedVehicle) {
-      alert("Selecione o veículo do cliente para gerar a nota.");
-      setStep('VEICULO');
-      return;
-    }
+    const targetClient = selectedClient || effectiveClient;
+    const targetVehicle = selectedVehicle || effectiveVehicle;
 
     setIsSaving(true);
     try {
-      // 1. Auto-purge empty boxes (quadrados em branco)
-      let validItems = items.filter(i => i.description && i.description.trim() !== '');
+      // 1. Process items: Keep all items that have a description OR a price/quantity
+      // Never delete items that the user entered!
+      let validItems = items
+        .filter(i => (i.description && i.description.trim() !== '') || ((i.unitPrice || 0) > 0) || ((i.quantity || 0) > 0))
+        .map((i, index) => ({
+          ...i,
+          description: (i.description && i.description.trim() !== '') 
+            ? i.description.trim().toUpperCase() 
+            : `SERVIÇO MECÂNICO ITEM ${index + 1}`,
+          quantity: i.quantity || 1,
+          unitPrice: i.unitPrice || 0
+        }));
 
-      // If user typed only labor or no items, provide an appropriate line item so invoice is clean
+      // If user typed only labor or completely empty items, provide a clean line item
       const laborVal = parseFloat(labor) || 0;
       if (validItems.length === 0) {
         if (laborVal > 0) {
@@ -213,13 +259,13 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
       const os: ServiceOrder = {
         id: Math.random().toString(36).substr(2, 9),
         osNumber,
-        clientId: selectedClient.id,
-        clientName: selectedClient.name,
-        clientPhone: selectedClient.phone || '(13) 99689-2958',
-        vehicleId: selectedVehicle.id,
-        vehiclePlate: selectedVehicle.plate,
-        vehicleModel: selectedVehicle.model,
-        vehicleKm: (selectedVehicle.km || 0).toString(),
+        clientId: targetClient.id,
+        clientName: targetClient.name,
+        clientPhone: targetClient.phone || '(13) 99689-2958',
+        vehicleId: targetVehicle.id,
+        vehiclePlate: targetVehicle.plate,
+        vehicleModel: targetVehicle.model,
+        vehicleKm: (targetVehicle.km || 0).toString(),
         problem: 'MANUTENÇÃO TÉCNICA KAEN',
         items: validItems,
         laborValue: laborVal,
@@ -231,7 +277,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         updatedAt: new Date().toISOString()
       };
 
-      // IMMEDIATELY ADVANCE TO FINAL NOTE
+      // IMMEDIATELY ADVANCE TO FINAL NOTE (never block user)
       setFinalOs(os);
       setStep('FINAL');
 
@@ -327,17 +373,11 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
   const handleResetForm = () => {
     setSelectedClient(null);
     setSelectedVehicle(null);
-    setItems([]);
+    setItems([{ id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }]);
     setLabor('0');
     setFinalOs(null);
     setStep('CLIENTE');
   };
-
-  // Filter vehicles for selected client
-  const clientVehicles = useMemo(() => {
-    if (!selectedClient) return [];
-    return vehicles.filter(v => v.clientId === selectedClient.id);
-  }, [vehicles, selectedClient]);
 
   return (
     <div className="flex flex-col min-h-screen bg-black text-white items-center w-full">
@@ -371,25 +411,36 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
             <span>1. Cliente</span>
             {selectedClient && <Check size={11} className="text-emerald-400" />}
           </button>
+          
           <button 
-            onClick={() => { if (selectedClient) setStep('VEICULO'); }}
-            disabled={!selectedClient}
-            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all ${!selectedClient ? 'opacity-30 cursor-not-allowed text-zinc-600' : 'cursor-pointer hover:bg-white/5'} ${step === 'VEICULO' ? 'bg-[#FF2D55] text-white shadow-lg shadow-red-900/40' : 'text-zinc-500'}`}
+            onClick={() => {
+              if (!selectedClient) setSelectedClient(effectiveClient);
+              setStep('VEICULO');
+            }}
+            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer hover:bg-white/5 ${step === 'VEICULO' ? 'bg-[#FF2D55] text-white shadow-lg shadow-red-900/40' : 'text-zinc-500'}`}
           >
             <span>2. Veículo</span>
             {selectedVehicle && <Check size={11} className="text-emerald-400" />}
           </button>
+
           <button 
-            onClick={() => { if (selectedClient && selectedVehicle) setStep('ITENS'); }}
-            disabled={!selectedClient || !selectedVehicle}
-            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all ${(!selectedClient || !selectedVehicle) ? 'opacity-30 cursor-not-allowed text-zinc-600' : 'cursor-pointer hover:bg-white/5'} ${step === 'ITENS' ? 'bg-[#FF2D55] text-white shadow-lg shadow-red-900/40' : 'text-zinc-500'}`}
+            onClick={() => {
+              if (!selectedClient) setSelectedClient(effectiveClient);
+              if (!selectedVehicle) setSelectedVehicle(effectiveVehicle);
+              setStep('ITENS');
+            }}
+            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer hover:bg-white/5 ${step === 'ITENS' ? 'bg-[#FF2D55] text-white shadow-lg shadow-red-900/40' : 'text-zinc-500'}`}
           >
             <span>3. Itens</span>
-            {items.length > 0 && <Check size={11} className="text-emerald-400" />}
+            {items.some(i => i.description || (i.unitPrice || 0) > 0) && <Check size={11} className="text-emerald-400" />}
           </button>
+
           <button 
-            disabled={!finalOs}
-            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all ${!finalOs ? 'opacity-30 cursor-not-allowed text-zinc-600' : 'cursor-pointer'} ${step === 'FINAL' ? 'bg-emerald-500 text-black font-black shadow-lg shadow-emerald-900/40' : 'text-zinc-500'}`}
+            onClick={() => {
+              if (finalOs) setStep('FINAL');
+              else handleFinalize();
+            }}
+            className={`py-2 px-1 sm:px-3 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${step === 'FINAL' ? 'bg-emerald-500 text-black font-black shadow-lg shadow-emerald-900/40' : 'text-zinc-500 hover:text-white'}`}
           >
             <span>4. Nota</span>
           </button>
@@ -480,6 +531,16 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                     <Plus className="text-[#FF2D55]" size={26} />
                     <span className="text-xs font-black uppercase tracking-wider italic text-zinc-300 group-hover:text-white transition-all">CADASTRAR NOVO CLIENTE</span>
                   </button>
+
+                  <button 
+                    onClick={() => {
+                      setSelectedClient(effectiveClient);
+                      setStep('ITENS');
+                    }}
+                    className="w-full py-4 text-center text-xs font-bold text-zinc-500 hover:text-white underline cursor-pointer"
+                  >
+                    Ir direto para os Itens (Venda Balcão / Avulsa) ➔
+                  </button>
                 </div>
               </>
             ) : (
@@ -522,15 +583,15 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         )}
 
         {/* STEP 2: VEICULO */}
-        {step === 'VEICULO' && selectedClient && (
+        {step === 'VEICULO' && (
           <div className="w-full max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-500 flex flex-col items-center">
             
             {/* Selected Client Badge */}
             <div className="w-full p-4 glass-card border border-white/10 rounded-2xl flex items-center justify-between">
               <div>
-                <span className="text-[8px] font-black uppercase tracking-widest text-[#FF2D55] block">CLIENTE SELECIONADO</span>
-                <p className="text-base font-black italic uppercase text-white">{selectedClient.name}</p>
-                <p className="text-[10px] text-zinc-400">{selectedClient.phone || '(13) 99689-2958'}</p>
+                <span className="text-[8px] font-black uppercase tracking-widest text-[#FF2D55] block">CLIENTE</span>
+                <p className="text-base font-black italic uppercase text-white">{effectiveClient.name}</p>
+                <p className="text-[10px] text-zinc-400">{effectiveClient.phone || '(13) 99689-2958'}</p>
               </div>
               <button 
                 onClick={() => setStep('CLIENTE')} 
@@ -542,28 +603,36 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
 
             <div className="text-center space-y-1">
               <h1 className="text-3xl sm:text-4xl font-black italic uppercase tracking-tighter">2. SELECIONE O VEÍCULO</h1>
-              <p className="text-xs text-zinc-400">Escolha o carro ou cadastre a placa para esta nota</p>
+              <p className="text-xs text-zinc-400">Escolha o carro ou avance direto para os itens da nota</p>
             </div>
             
             {!showQuickVehicle ? (
               <div className="grid grid-cols-1 gap-4 w-full">
                 {/* Linked Vehicles */}
                 {clientVehicles.map(v => (
-                  <div key={v.id} className="p-6 glass-card border border-white/10 hover:border-[#FF2D55]/60 rounded-[2rem] space-y-4 shadow-xl transition-all">
+                  <div 
+                    key={v.id} 
+                    onClick={() => {
+                      const input = document.getElementById(`km-input-${v.id}`) as HTMLInputElement;
+                      const val = input ? input.value : (v.km || 0).toString();
+                      handleSelectVehicleWithKm(v, val);
+                    }}
+                    className="p-6 glass-card border border-white/10 hover:border-[#FF2D55] rounded-[2rem] space-y-4 shadow-xl transition-all cursor-pointer group hover:bg-white/5 active:scale-[0.99]"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="text-left">
                         <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 block">VEÍCULO CADASTRADO</span>
-                        <p className="text-2xl sm:text-3xl font-black italic uppercase text-white tracking-widest leading-none mt-1">{v.plate}</p>
+                        <p className="text-2xl sm:text-3xl font-black italic uppercase text-white tracking-widest leading-none mt-1 group-hover:text-[#FF2D55] transition-colors">{v.plate}</p>
                         <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mt-1.5">{v.model}</p>
                         <p className="text-[10px] text-zinc-500 mt-1">KM Anterior: <span className="text-zinc-300 font-bold">{v.km ? v.km.toLocaleString('pt-BR') : '0'} KM</span></p>
                       </div>
-                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-zinc-400">
+                      <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:bg-[#FF2D55] group-hover:text-white transition-all">
                         <Car size={26} />
                       </div>
                     </div>
 
                     {/* Novo KM com avanço imediato */}
-                    <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex-1 space-y-1">
                         <label className="text-[9px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                           <Gauge size={13} /> KM Atual nesta Visita (Atualizar Retorno):
@@ -598,8 +667,8 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                       <Car size={24} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black uppercase italic text-white">Nenhum veículo vinculado a {selectedClient.name}</h4>
-                      <p className="text-xs text-zinc-400 mt-1">Informe a placa e modelo abaixo para avançar imediatamente para a nota:</p>
+                      <h4 className="text-sm font-black uppercase italic text-white">Nenhum veículo vinculado a {effectiveClient.name}</h4>
+                      <p className="text-xs text-zinc-400 mt-1">Informe a placa e modelo abaixo ou pule direto para os itens:</p>
                     </div>
 
                     {/* Direct Quick Vehicle Form on Empty */}
@@ -647,20 +716,28 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                   </div>
                 )}
 
-                {clientVehicles.length > 0 && (
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
                   <button 
                     onClick={() => setShowQuickVehicle(true)} 
-                    className="w-full p-5 border-2 border-dashed border-white/15 hover:border-[#FF2D55] rounded-[1.75rem] flex items-center justify-center gap-3 hover:bg-white/5 transition-all group active:scale-95 cursor-pointer"
+                    className="flex-1 p-4 border-2 border-dashed border-white/15 hover:border-[#FF2D55] rounded-2xl flex items-center justify-center gap-2 hover:bg-white/5 transition-all group active:scale-95 cursor-pointer"
                   >
-                    <Plus className="text-[#FF2D55]" size={22} />
-                    <span className="text-xs font-black uppercase tracking-wider italic text-zinc-300 group-hover:text-white transition-all">CADASTRAR OUTRO VEÍCULO PARA ESTE CLIENTE</span>
+                    <Plus className="text-[#FF2D55]" size={18} />
+                    <span className="text-xs font-black uppercase tracking-wider italic text-zinc-300 group-hover:text-white transition-all">NOVO VEÍCULO</span>
                   </button>
-                )}
+
+                  <button 
+                    onClick={handleSkipVehicleToItems} 
+                    className="p-4 bg-zinc-900 hover:bg-zinc-800 border border-white/15 rounded-2xl text-xs font-black uppercase tracking-wider text-zinc-300 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                  >
+                    <span>PULAR VEÍCULO E IR DIRETO PARA OS ITENS</span>
+                    <ArrowRight size={16} className="text-[#FF2D55]" />
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="w-full glass-card p-6 sm:p-8 rounded-[2rem] border-white/10 space-y-6 shadow-2xl animate-in zoom-in duration-300">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <h3 className="text-lg font-black uppercase italic tracking-wider text-white">NOVO VEÍCULO PARA {selectedClient.name}</h3>
+                  <h3 className="text-lg font-black uppercase italic tracking-wider text-white">NOVO VEÍCULO PARA {effectiveClient.name}</h3>
                   <button onClick={() => setShowQuickVehicle(false)} className="text-zinc-500 hover:text-white p-2 cursor-pointer"><X size={20}/></button>
                 </div>
                 <div className="space-y-4">
@@ -707,8 +784,8 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
           </div>
         )}
 
-        {/* STEP 3: ITENS & VALORES */}
-        {step === 'ITENS' && selectedVehicle && (
+        {/* STEP 3: ITENS & VALORES - NEVER DISAPPEARS */}
+        {step === 'ITENS' && (
           <div className="w-full max-w-3xl space-y-6 animate-in slide-in-from-right-4 duration-500 flex flex-col items-center">
             
             <div className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/10 space-y-6 w-full shadow-2xl">
@@ -720,11 +797,11 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                     <Car size={24}/>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white leading-none">{selectedVehicle.plate}</h3>
+                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white leading-none">{effectiveVehicle.plate}</h3>
                     <p className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider mt-1">
-                      {selectedVehicle.model} • <span className="text-emerald-400 font-mono">{Number(selectedVehicle.km || 0).toLocaleString('pt-BR')} KM</span>
+                      {effectiveVehicle.model} • <span className="text-emerald-400 font-mono">{Number(effectiveVehicle.km || 0).toLocaleString('pt-BR')} KM</span>
                     </p>
-                    <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Cliente: {selectedClient?.name}</p>
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">Cliente: {effectiveClient.name}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -735,7 +812,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                     BUSCAR PEÇA
                   </button>
                   <button 
-                    onClick={() => setItems([...items, { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }])} 
+                    onClick={() => setItems(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }])} 
                     className="px-4 py-2.5 bg-[#FF2D55] text-white rounded-xl font-black uppercase text-[10px] tracking-wider active:scale-95 transition-all italic cursor-pointer flex items-center gap-1.5 shadow-lg shadow-red-900/30"
                   >
                     <Plus size={14} /> NOVO ITEM
@@ -758,16 +835,28 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                       key={idx}
                       type="button"
                       onClick={() => {
-                        setItems(prev => [
-                          ...prev,
-                          {
-                            id: Math.random().toString(36).substr(2, 9),
-                            description: preset.desc,
-                            quantity: 1,
-                            unitPrice: preset.defaultPrice,
-                            type: preset.type
+                        setItems(prev => {
+                          // If only 1 completely empty item exists, replace it
+                          if (prev.length === 1 && !prev[0].description && prev[0].unitPrice === 0) {
+                            return [{
+                              id: Math.random().toString(36).substr(2, 9),
+                              description: preset.desc,
+                              quantity: 1,
+                              unitPrice: preset.defaultPrice,
+                              type: preset.type
+                            }];
                           }
-                        ]);
+                          return [
+                            ...prev,
+                            {
+                              id: Math.random().toString(36).substr(2, 9),
+                              description: preset.desc,
+                              quantity: 1,
+                              unitPrice: preset.defaultPrice,
+                              type: preset.type
+                            }
+                          ];
+                        });
                       }}
                       className="p-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/5 hover:border-[#FF2D55]/50 rounded-xl flex flex-col text-left transition-all active:scale-95 group cursor-pointer shadow-sm"
                       title={`Adicionar ${preset.label} por R$ ${preset.defaultPrice}`}
@@ -817,42 +906,45 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                 </div>
               )}
 
-              {/* Items List */}
+              {/* Items List - Always renders, never blank */}
               <div className="space-y-3">
-                {items.some(i => !i.description || i.description.trim() === '') && (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                    <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                      <span>💡</span>
-                      <span>
-                        {items.filter(i => !i.description || i.description.trim() === '').length} caixa(s) em branco. O sistema apaga automaticamente ao salvar a nota!
-                      </span>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                    ITENS DA NOTA ({items.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setItems(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }])}
+                    className="text-[10px] font-black uppercase text-[#FF2D55] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={12} /> Adicionar Linha
+                  </button>
+                </div>
+
+                {items.map((item, idx) => (
+                  <div key={item.id || idx} className="bg-black/60 p-4 rounded-2xl border border-white/10 flex flex-col gap-3 shadow-inner">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-bold text-zinc-500 uppercase">Item #{idx + 1}</span>
+                      {items.length > 1 && (
+                        <button 
+                          type="button"
+                          onClick={() => setItems(items.filter(i => i.id !== item.id))} 
+                          className="text-zinc-500 hover:text-[#FF2D55] active:scale-90 transition-all cursor-pointer p-1"
+                          title="Remover linha"
+                        >
+                          <Trash2 size={15}/>
+                        </button>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setItems(items.filter(i => i.description && i.description.trim() !== ''))}
-                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black rounded-lg font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer self-start sm:self-auto"
-                    >
-                      Limpar Vazias
-                    </button>
-                  </div>
-                )}
 
-                {items.length === 0 && (
-                  <div className="text-center py-8 border border-dashed border-white/10 rounded-2xl space-y-2">
-                    <p className="text-xs text-zinc-400">Nenhum item na nota ainda.</p>
-                    <p className="text-[10px] text-zinc-600">Clique em um dos atalhos rápidos acima ou em "+ NOVO ITEM".</p>
-                  </div>
-                )}
-
-                {items.map(item => (
-                  <div key={item.id} className="bg-black/60 p-4 rounded-2xl border border-white/10 flex flex-col gap-3 shadow-inner">
                     <input 
                       type="text" 
-                      placeholder="DESCRIÇÃO DO SERVIÇO OU PEÇA..." 
+                      placeholder="DIGITE O SERVIÇO OU PEÇA (EX: PASTILHA, ÓLEO, REVISÃO...)" 
                       value={item.description} 
                       onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, description: e.target.value.toUpperCase()} : i))} 
-                      className="w-full bg-transparent text-xs sm:text-sm font-black outline-none uppercase italic text-white tracking-wider placeholder-zinc-600"
+                      className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-xs sm:text-sm font-black outline-none uppercase italic text-white tracking-wider placeholder-zinc-600 focus:border-[#FF2D55]"
                     />
+
                     <div className="flex items-center gap-2 sm:gap-4">
                       <div className="space-y-1">
                         <label className="text-[8px] font-bold text-zinc-400 uppercase">QTD</label>
@@ -861,7 +953,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                           placeholder="1" 
                           value={item.quantity || ''} 
                           onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, quantity: parseFloat(e.target.value) || 0} : i))} 
-                          className="w-16 sm:w-20 bg-white/5 border border-white/10 p-2 sm:p-2.5 rounded-xl text-center text-xs font-mono font-bold text-white outline-none"
+                          className="w-16 sm:w-20 bg-white/5 border border-white/10 p-2 sm:p-2.5 rounded-xl text-center text-xs font-mono font-bold text-white outline-none focus:border-[#FF2D55]"
                         />
                       </div>
                       <div className="space-y-1 flex-1">
@@ -871,7 +963,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                           placeholder="0,00" 
                           value={item.unitPrice || ''} 
                           onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, unitPrice: parseFloat(e.target.value) || 0} : i))} 
-                          className="w-full bg-white/5 border border-white/10 p-2 sm:p-2.5 rounded-xl text-xs font-mono font-bold text-white outline-none"
+                          className="w-full bg-white/5 border border-white/10 p-2 sm:p-2.5 rounded-xl text-xs font-mono font-bold text-white outline-none focus:border-[#FF2D55]"
                         />
                       </div>
                       <div className="space-y-1">
@@ -880,12 +972,6 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
                           R$ {((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
                         </div>
                       </div>
-                      <button 
-                        onClick={() => setItems(items.filter(i => i.id !== item.id))} 
-                        className="p-2 text-zinc-500 hover:text-[#FF2D55] active:scale-90 transition-all cursor-pointer mt-3"
-                      >
-                        <Trash2 size={18}/>
-                      </button>
                     </div>
                   </div>
                 ))}

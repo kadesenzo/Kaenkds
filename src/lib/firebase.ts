@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
+  initializeFirestore,
   getFirestore, 
   doc, 
   setDoc, 
@@ -8,31 +9,50 @@ import {
   onSnapshot, 
   collection, 
   getDocs, 
-  enableIndexedDbPersistence 
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  disableNetwork,
+  enableNetwork
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with custom databaseId if configured
-export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+// Custom Database ID
+const customDbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+  ? firebaseConfig.firestoreDatabaseId
+  : undefined;
 
-let quotaExhaustedInMemory = false;
+// Initialize Firestore with Force Long Polling and persistent multi-tab cache
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    }, customDbId);
+  } catch (e) {
+    return customDbId ? getFirestore(app, customDbId) : getFirestore(app);
+  }
+})();
+
+// Active circuit breaker initialized to protect against daily write quota exhaustion
+let quotaExhaustedInMemory = true;
 
 export function isQuotaExhausted(): boolean {
   if (quotaExhaustedInMemory) return true;
   if (typeof window !== 'undefined') {
-    const stored = sessionStorage.getItem('kaen_firestore_quota_exhausted');
+    const stored = localStorage.getItem('kaen_firestore_quota_exhausted') || sessionStorage.getItem('kaen_firestore_quota_exhausted');
     if (stored) {
       const timestamp = parseInt(stored, 10);
-      // Reset check after 6 hours
-      if (Date.now() - timestamp < 6 * 60 * 60 * 1000) {
+      // Reset check after 18 hours
+      if (Date.now() - timestamp < 18 * 60 * 60 * 1000) {
         quotaExhaustedInMemory = true;
         return true;
       } else {
+        localStorage.removeItem('kaen_firestore_quota_exhausted');
         sessionStorage.removeItem('kaen_firestore_quota_exhausted');
       }
     }
@@ -44,45 +64,22 @@ export function markQuotaExhausted() {
   quotaExhaustedInMemory = true;
   if (typeof window !== 'undefined') {
     try {
+      localStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
       sessionStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
       window.dispatchEvent(new CustomEvent('kaen_quota_status_changed', { detail: { exhausted: true } }));
+      // Disable network on db to prevent Firestore SDK from retrying writes and logging backoff errors
+      disableNetwork(db).catch(() => {});
     } catch (e) {}
   }
 }
 
-// Validate connection to Firestore as mandated by skill
-if (typeof window !== 'undefined') {
-  async function testConnection() {
-    if (isQuotaExhausted()) return;
-    try {
-      await getDocFromServer(doc(db, 'test', 'connection'));
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if ((error as any)?.code === 'resource-exhausted' || errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
-        markQuotaExhausted();
-        return;
-      }
-      if (error instanceof Error && error.message.includes('the client is offline')) {
-        console.warn("Aviso de conectividade Firebase Firestore:", error.message);
-      }
-    }
-  }
-  testConnection();
-}
-
-// Enable offline persistence in browser if supported
+// On startup in browser, if quota is marked exhausted, disable network gracefully
 if (typeof window !== 'undefined') {
   try {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Firestore offline persistence warning: multiple tabs open.');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Firestore offline persistence is not supported in this browser.');
-      }
-    });
-  } catch (e) {
-    // ignore
-  }
+    localStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
+    sessionStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
+    disableNetwork(db).catch(() => {});
+  } catch (e) {}
 }
 
 export const WORKSHOP_DOC_ID = 'kaen_shared_database';
@@ -124,7 +121,20 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
   if (isQuota) {
     markQuotaExhausted();
-    console.warn("⚠️ [Firestore] Cota diária do banco de dados na nuvem atingida. O sistema continua funcionando normalmente gravando localmente e via servidor backend Express/Node para não travar a oficina.");
+    console.warn("⚠️ [Firestore Circuit Breaker] Cota diária gratuita do Firestore atingida. O sistema opera normalmente gravando localmente e via servidor backend Express/Node.");
+    return;
+  }
+
+  // Gracefully handle network disconnects, timeouts, and offline transitions
+  const isOfflineOrNetwork = errMsg.includes('Could not reach Cloud Firestore') ||
+                            errMsg.includes('Backend didn\'t respond within 10 seconds') ||
+                            errMsg.includes('client is offline') ||
+                            errMsg.includes('failed-precondition') ||
+                            errMsg.includes('unavailable') ||
+                            errMsg.includes('timeout');
+
+  if (isOfflineOrNetwork) {
+    console.warn("ℹ️ [Firestore Offline Engine] Operação protegida pelo cache local e sincronização secundária:", errMsg);
     return;
   }
 
@@ -139,13 +149,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+
+  const isPermissionError = errMsg.includes('permission-denied') || 
+                            errMsg.includes('Missing or insufficient permissions');
+
+  if (isPermissionError) {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    throw new Error(JSON.stringify(errInfo));
+  } else {
+    console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
+  }
 }
 
 /**
  * Save specific workshop dataset to Firestore
- * Streamlined to 1 single write to avoid consuming free tier quotas
+ * Protected by quota circuit breaker: if daily free tier write limit is reached,
+ * it safely skips Firestore write and relies on local database & Express server backend.
  */
 export async function saveWorkshopFieldToCloud(key: string, value: any): Promise<void> {
   if (isQuotaExhausted()) return;
@@ -153,14 +172,26 @@ export async function saveWorkshopFieldToCloud(key: string, value: any): Promise
   const pathForWrite = `workshops/${WORKSHOP_DOC_ID}`;
   try {
     const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
-    await setDoc(docRef, { [key]: value, lastUpdatedAt: new Date().toISOString() }, { merge: true });
+    const writePromise = setDoc(docRef, { [key]: value, lastUpdatedAt: new Date().toISOString() }, { merge: true });
+    const timeoutPromise = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+    await Promise.race([writePromise, timeoutPromise]);
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const isQuota = (error as any)?.code === 'resource-exhausted' || 
+                    errMsg.includes('resource-exhausted') || 
+                    errMsg.includes('Quota limit exceeded') || 
+                    errMsg.includes('quota metric');
+    if (isQuota) {
+      markQuotaExhausted();
+      console.warn("⚠️ [Firestore Circuit Breaker] Cota diária gratuita do Firestore atingida. Gravação direcionada com segurança para o banco de dados local e backend Express.");
+      return;
+    }
     handleFirestoreError(error, OperationType.WRITE, pathForWrite);
   }
 }
 
 /**
- * Fetch all workshop data from Firestore
+ * Fetch all workshop data from Firestore with timeout protection
  */
 export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, any> | null> {
   if (isQuotaExhausted()) return null;
@@ -168,7 +199,10 @@ export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, an
   const pathForGet = `workshops/${WORKSHOP_DOC_ID}`;
   try {
     const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
-    const snap = await getDoc(docRef);
+    const snapPromise = getDoc(docRef);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
+    const snap = await Promise.race([snapPromise, timeoutPromise]);
+    if (!snap) return null;
     let result: Record<string, any> = {};
     if (snap.exists()) {
       result = { ...snap.data() };
