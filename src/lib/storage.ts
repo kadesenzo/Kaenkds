@@ -1,5 +1,6 @@
 import { Client, Vehicle, ServiceOrder, OSItem, Part, Appointment, UserSession } from '../../types';
 import { saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './firebase';
+import { saveToSupabase, isSupabaseConfigured } from './supabase';
 
 /**
  * Universal Workshop Storage & Cloud Persistence Engine
@@ -114,6 +115,13 @@ export async function saveWorkshopData<T>(key: string, data: T, username?: strin
     await saveWorkshopFieldToCloud(`kaenpro_rafael_${key}`, data);
   } catch (err) {
     // Graceful offline/local fallback
+  }
+
+  // 3. Supabase secondary backup & failover write
+  if (isSupabaseConfigured()) {
+    saveToSupabase(key, data).catch((err) => {
+      console.warn("Supabase backup warning:", err);
+    });
   }
 
   // Trigger cross-component reactive update

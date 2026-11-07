@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Menu, RefreshCw, LayoutDashboard, Wrench, Users, Shield, Smartphone, Lock, ShieldAlert, X, Cloud } from 'lucide-react';
+import { LogOut, Menu, RefreshCw, LayoutDashboard, Wrench, Users, Shield, Smartphone, Lock, ShieldAlert, X, Cloud, Database } from 'lucide-react';
 import { SyncStatus } from '../types';
+import DatabaseFailoverModal from './DatabaseFailoverModal';
 
 interface HeaderProps {
   onLogout: (forgetDevice?: boolean) => void;
@@ -19,6 +20,7 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDbModal, setShowDbModal] = useState(false);
 
   // Listen to live presence updates from SSE connection
   useEffect(() => {
@@ -44,9 +46,12 @@ const Header: React.FC<HeaderProps> = ({
       }
     };
     
+    const handleOpenDb = () => setShowDbModal(true);
     window.addEventListener('kaen_presence_updated', handlePresenceUpdate);
+    window.addEventListener('kaen_open_database_modal', handleOpenDb);
     return () => {
       window.removeEventListener('kaen_presence_updated', handlePresenceUpdate);
+      window.removeEventListener('kaen_open_database_modal', handleOpenDb);
     };
   }, []);
 
@@ -107,20 +112,21 @@ const Header: React.FC<HeaderProps> = ({
 
         <button 
           onClick={() => {
+            setShowDbModal(true);
             window.dispatchEvent(new CustomEvent('kaen_force_cloud_backup'));
           }}
           className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 bg-zinc-900/60 hover:bg-zinc-800 rounded-full border border-white/5 hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95"
-          title="Nuvem Firebase Firestore ativa. Clique para forçar backup instantâneo de todos os dados da oficina."
+          title="Bancos de Dados: Firestore & Supabase Failover. Clique para gerenciar e passar dados ao original."
         >
           {syncStatus === SyncStatus.SYNCING ? (
             <RefreshCw size={11} className="text-[#FF2D55] animate-spin" />
           ) : (
-            <Cloud size={12} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+            <Database size={12} className="text-emerald-400 group-hover:scale-110 transition-transform" />
           )}
           <span className="text-[8px] font-black uppercase tracking-[0.15em] text-zinc-300 flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${syncStatus === SyncStatus.SYNCING ? 'bg-amber-400' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'}`}></span>
-            <span className="hidden sm:inline">{syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Nuvem Conectada'}</span>
-            <span className="sm:hidden">{syncStatus === SyncStatus.SYNCING ? '...' : 'Nuvem'}</span>
+            <span className="hidden sm:inline">{syncStatus === SyncStatus.SYNCING ? 'Sincronizando...' : 'Bancos / Nuvem'}</span>
+            <span className="sm:hidden">{syncStatus === SyncStatus.SYNCING ? '...' : 'Bancos'}</span>
           </span>
         </button>
 
@@ -210,6 +216,12 @@ const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Database Failover Modal (Firestore & Supabase) */}
+      <DatabaseFailoverModal 
+        isOpen={showDbModal} 
+        onClose={() => setShowDbModal(false)} 
+      />
     </header>
   );
 };

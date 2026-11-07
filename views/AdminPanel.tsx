@@ -757,6 +757,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
             
             <div className="flex flex-wrap items-center gap-4">
               <button
+                onClick={() => window.dispatchEvent(new CustomEvent('kaen_open_database_modal'))}
+                className="px-5 py-3.5 bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/40 rounded-full font-black uppercase text-[8px] tracking-widest text-emerald-400 hover:text-white transition-all italic flex items-center gap-2 shadow-lg cursor-pointer"
+                title="Configurar Supabase como reserva e passar informações ao original"
+              >
+                <Database size={13} className="text-emerald-400" /> Supabase & Firestore Failover
+              </button>
+              <button
                 onClick={() => requestSecAuth('RESETAR BANCOS DE DADOS DO SISTEMA', 'RESET_DB')}
                 className="px-5 py-3.5 bg-red-950/20 border border-red-900/45 hover:bg-red-900/30 rounded-full font-black uppercase text-[8px] tracking-widest text-red-500 transition-all italic flex items-center gap-2"
               >
@@ -913,6 +920,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ session, syncData }) => {
                     </div>
                     {/* Simulator Action Controls */}
                     <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        onClick={() => window.dispatchEvent(new CustomEvent('kaen_open_database_modal'))}
+                        className="px-4 py-2 border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-sm"
+                        title="Abrir gerenciador de bancos: Firestore Original e Supabase Failover"
+                      >
+                        <Database size={12} className="text-emerald-400" />
+                        <span>Supabase Failover & Sincronizar</span>
+                      </button>
+
                       <button 
                         onClick={handleForceCloudBackup}
                         disabled={isCloudSyncing}
