@@ -95,15 +95,15 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
 
   // Handle Plate Typing with Auto-lookup
   const handlePlateInputChange = (val: string) => {
-    const cleanPlate = val.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const cleanPlate = (val || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
     setVehiclePlate(cleanPlate);
 
     const lookupKey = cleanPlate.replace(/[^A-Z0-9]/g, '');
     if (lookupKey.length >= 6) {
-      // 1. Try to find existing vehicle in workshop
-      const foundInShop = vehicles.find(v => v.plate.replace(/[^A-Z0-9]/g, '').toUpperCase() === lookupKey);
+      // 1. Try to find existing vehicle in workshop safely
+      const foundInShop = vehicles.find(v => v && v.plate && v.plate.replace(/[^A-Z0-9]/g, '').toUpperCase() === lookupKey);
       if (foundInShop) {
-        setVehicleModel(foundInShop.model);
+        setVehicleModel(foundInShop.model || '');
         if (foundInShop.km && !vehicleKm) {
           setVehicleKm(String(foundInShop.km));
         }
@@ -111,9 +111,9 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
 
         // Also link owner client if known
         if (foundInShop.clientId && !clientName) {
-          const owner = clients.find(c => c.id === foundInShop.clientId);
+          const owner = clients.find(c => c && c.id === foundInShop.clientId);
           if (owner) {
-            setClientName(owner.name);
+            setClientName(owner.name || '');
             setClientPhone(owner.phone || '(13) 99689-2958');
             setSelectedClientId(owner.id);
           }
@@ -126,7 +126,7 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
         const info = lookupVehicleByPlate(cleanPlate);
         if (info && info.model) {
           setVehicleModel(info.model);
-          if (!vehicleKm) setVehicleKm(String(info.km));
+          if (!vehicleKm && info.km) setVehicleKm(String(info.km));
         }
       }
     }
@@ -134,15 +134,16 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
 
   // Select an existing client from suggestions
   const handleSelectClient = (c: Client) => {
-    setClientName(c.name);
+    if (!c) return;
+    setClientName(c.name || '');
     setClientPhone(c.phone || '(13) 99689-2958');
     setSelectedClientId(c.id);
 
     // If client has a car, auto-fill it
-    const clientCar = vehicles.find(v => v.clientId === c.id);
+    const clientCar = vehicles.find(v => v && v.clientId === c.id);
     if (clientCar) {
-      setVehiclePlate(clientCar.plate);
-      setVehicleModel(clientCar.model);
+      setVehiclePlate(clientCar.plate || '');
+      setVehicleModel(clientCar.model || '');
       setVehicleKm(clientCar.km ? String(clientCar.km) : '');
       setSelectedVehicleId(clientCar.id);
     }
@@ -150,29 +151,34 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
 
   // Select an existing vehicle from suggestions
   const handleSelectVehicle = (v: Vehicle) => {
-    setVehiclePlate(v.plate);
-    setVehicleModel(v.model);
+    if (!v) return;
+    setVehiclePlate(v.plate || '');
+    setVehicleModel(v.model || '');
     setVehicleKm(v.km ? String(v.km) : '');
     setSelectedVehicleId(v.id);
 
     // Auto-fill client if vehicle is linked to a client
     if (v.clientId) {
-      const owner = clients.find(c => c.id === v.clientId);
+      const owner = clients.find(c => c && c.id === v.clientId);
       if (owner) {
-        setClientName(owner.name);
+        setClientName(owner.name || '');
         setClientPhone(owner.phone || '(13) 99689-2958');
         setSelectedClientId(owner.id);
       }
     }
   };
 
-  // 100% BULLETPROOF ADVANCE TO ITENS
+  // 100% BULLETPROOF ADVANCE TO ITENS - ALWAYS MOVES FORWARD
   const handleAdvanceToItems = () => {
-    // 1. Ensure sensible defaults
-    const finalClientName = clientName.trim() ? clientName.trim().toUpperCase() : 'CLIENTE BALCÃO';
-    const finalClientPhone = clientPhone.trim() || '(13) 99689-2958';
-    const finalPlate = vehiclePlate.trim() ? vehiclePlate.trim().toUpperCase() : 'SEM PLACA';
-    const finalModel = vehicleModel.trim() ? vehicleModel.trim().toUpperCase() : 'VEÍCULO DIVERSOS';
+    // 1. ADVANCE STEP IMMEDIATELY FIRST - NEVER BLOCKED BY STORAGE OR ASYNC
+    setStep('ITENS');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 2. Normalize and set direct fields
+    const finalClientName = (clientName || '').trim() ? (clientName || '').trim().toUpperCase() : 'CLIENTE BALCÃO';
+    const finalClientPhone = (clientPhone || '').trim() || '(13) 99689-2958';
+    const finalPlate = (vehiclePlate || '').trim() ? (vehiclePlate || '').trim().toUpperCase() : 'SEM PLACA';
+    const finalModel = (vehicleModel || '').trim() ? (vehicleModel || '').trim().toUpperCase() : 'VEÍCULO DIVERSOS';
     const finalKmNum = parseFloat(vehicleKm) || 0;
 
     setClientName(finalClientName);
@@ -180,62 +186,63 @@ const NewServiceOrder: React.FC<NewServiceOrderProps> = ({ session, syncData }) 
     setVehiclePlate(finalPlate);
     setVehicleModel(finalModel);
 
-    // 2. Persist / update client in background
-    let targetClientId = selectedClientId;
-    if (!targetClientId) {
-      const existingClient = clients.find(c => c.name.toUpperCase() === finalClientName);
-      if (existingClient) {
-        targetClientId = existingClient.id;
-      } else {
-        targetClientId = Math.random().toString(36).substr(2, 9);
-        const newClientObj: Client = {
-          id: targetClientId,
-          name: finalClientName,
-          phone: finalClientPhone,
-          document: '---',
-          observations: 'CADASTRADO PELA NOTA FISCAL',
-          createdAt: new Date().toISOString()
-        };
-        const updatedClients = mergeUniqueById(clients, [newClientObj]);
-        setClients(updatedClients);
-        saveWorkshopData('clients', updatedClients, tenant);
-        if (syncData) syncData('clients', updatedClients).catch(console.warn);
-      }
-      setSelectedClientId(targetClientId);
-    }
+    // 3. Persist client & vehicle non-blockingly
+    setTimeout(async () => {
+      try {
+        let targetClientId = selectedClientId;
+        if (!targetClientId) {
+          const existingClient = clients.find(c => c && (c.name || '').toUpperCase() === finalClientName);
+          if (existingClient) {
+            targetClientId = existingClient.id;
+          } else {
+            targetClientId = Math.random().toString(36).substr(2, 9);
+            const newClientObj: Client = {
+              id: targetClientId,
+              name: finalClientName,
+              phone: finalClientPhone,
+              document: '---',
+              observations: 'CADASTRADO PELA NOTA FISCAL',
+              createdAt: new Date().toISOString()
+            };
+            const updatedClients = mergeUniqueById(clients, [newClientObj]);
+            setClients(updatedClients);
+            saveWorkshopData('clients', updatedClients, tenant);
+            if (syncData) syncData('clients', updatedClients).catch(console.warn);
+          }
+          setSelectedClientId(targetClientId);
+        }
 
-    // 3. Persist / update vehicle in background
-    let targetVehicleId = selectedVehicleId;
-    if (finalPlate !== 'SEM PLACA') {
-      const existingVehicle = vehicles.find(v => v.plate.toUpperCase() === finalPlate);
-      if (existingVehicle) {
-        targetVehicleId = existingVehicle.id;
-        const updatedVehicles = vehicles.map(v => v.id === existingVehicle.id ? { ...v, km: finalKmNum, model: finalModel } : v);
-        setVehicles(updatedVehicles);
-        saveWorkshopData('vehicles', updatedVehicles, tenant);
-        if (syncData) syncData('vehicles', updatedVehicles).catch(console.warn);
-      } else {
-        targetVehicleId = Math.random().toString(36).substr(2, 9);
-        const newVeh: Vehicle = {
-          id: targetVehicleId,
-          clientId: targetClientId,
-          model: finalModel,
-          plate: finalPlate,
-          brand: finalModel.split(' ')[0] || 'GERAL',
-          year: '---',
-          km: finalKmNum
-        };
-        const updatedVehicles = mergeUniqueById(vehicles, [newVeh]);
-        setVehicles(updatedVehicles);
-        saveWorkshopData('vehicles', updatedVehicles, tenant);
-        if (syncData) syncData('vehicles', updatedVehicles).catch(console.warn);
+        let targetVehicleId = selectedVehicleId;
+        if (finalPlate !== 'SEM PLACA') {
+          const existingVehicle = vehicles.find(v => v && (v.plate || '').toUpperCase() === finalPlate);
+          if (existingVehicle) {
+            targetVehicleId = existingVehicle.id;
+            const updatedVehicles = vehicles.map(v => v && v.id === existingVehicle.id ? { ...v, km: finalKmNum, model: finalModel } : v);
+            setVehicles(updatedVehicles);
+            saveWorkshopData('vehicles', updatedVehicles, tenant);
+            if (syncData) syncData('vehicles', updatedVehicles).catch(console.warn);
+          } else {
+            targetVehicleId = Math.random().toString(36).substr(2, 9);
+            const newVeh: Vehicle = {
+              id: targetVehicleId,
+              clientId: targetClientId,
+              model: finalModel,
+              plate: finalPlate,
+              brand: finalModel.split(' ')[0] || 'GERAL',
+              year: '---',
+              km: finalKmNum
+            };
+            const updatedVehicles = mergeUniqueById(vehicles, [newVeh]);
+            setVehicles(updatedVehicles);
+            saveWorkshopData('vehicles', updatedVehicles, tenant);
+            if (syncData) syncData('vehicles', updatedVehicles).catch(console.warn);
+          }
+          setSelectedVehicleId(targetVehicleId);
+        }
+      } catch (saveErr) {
+        console.warn("Notice: background client/vehicle auto-save:", saveErr);
       }
-      setSelectedVehicleId(targetVehicleId);
-    }
-
-    // 4. IMMEDIATE ADVANCE - NEVER BLOCKS
-    setStep('ITENS');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 10);
   };
 
   // Recalculate total dynamically
@@ -644,17 +651,19 @@ WhatsApp: (13) 99689-2958`;
                   </div>
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {vehicles
-                      .filter(v => !vehicleSearch || v.plate.includes(vehicleSearch.toUpperCase()) || v.model.toLowerCase().includes(vehicleSearch.toLowerCase()))
-                      .slice(0, 6)
+                      .filter(v => v && v.plate && (!vehicleSearch || (v.plate || '').toUpperCase().includes(vehicleSearch.toUpperCase()) || (v.model || '').toLowerCase().includes(vehicleSearch.toLowerCase())))
+                      .slice(0, 8)
                       .map(v => (
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => handleSelectVehicle(v)}
+                          onClick={() => {
+                            handleSelectVehicle(v);
+                          }}
                           className={`p-2.5 rounded-xl border flex flex-col text-left shrink-0 min-w-[130px] transition-all cursor-pointer ${vehiclePlate === v.plate ? 'bg-[#FF2D55]/20 border-[#FF2D55]' : 'bg-zinc-900/80 border-white/10 hover:border-white/30'}`}
                         >
                           <span className="text-xs font-black text-white font-mono">{v.plate}</span>
-                          <span className="text-[9px] text-zinc-400 truncate max-w-[120px]">{v.model}</span>
+                          <span className="text-[9px] text-zinc-400 truncate max-w-[120px]">{v.model || 'Veículo'}</span>
                           <span className="text-[8px] text-emerald-400 font-mono mt-0.5">{v.km ? `${Number(v.km).toLocaleString('pt-BR')} KM` : 'Sem KM'}</span>
                         </button>
                       ))}
@@ -725,13 +734,15 @@ WhatsApp: (13) 99689-2958`;
                   </div>
                   <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                     {clients
-                      .filter(c => !clientSearch || c.name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.phone && c.phone.includes(clientSearch)))
-                      .slice(0, 6)
+                      .filter(c => c && c.name && (!clientSearch || (c.name || '').toLowerCase().includes(clientSearch.toLowerCase()) || (c.phone && c.phone.includes(clientSearch))))
+                      .slice(0, 8)
                       .map(c => (
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => handleSelectClient(c)}
+                          onClick={() => {
+                            handleSelectClient(c);
+                          }}
                           className={`p-2.5 rounded-xl border flex flex-col text-left shrink-0 min-w-[130px] transition-all cursor-pointer ${clientName === c.name ? 'bg-blue-500/20 border-blue-500' : 'bg-zinc-900/80 border-white/10 hover:border-white/30'}`}
                         >
                           <span className="text-xs font-black text-white truncate max-w-[120px]">{c.name}</span>
@@ -1118,6 +1129,44 @@ WhatsApp: (13) 99689-2958`;
         )}
 
       </div>
+
+      {/* BARRA FIXA DE AÇÃO NO MOBILE (NUNCA SOME NO CELULAR) */}
+      {step === 'DADOS' && (
+        <div className="fixed bottom-0 left-0 right-0 p-3 bg-black/95 backdrop-blur-lg border-t border-white/10 flex items-center justify-between gap-3 z-50 md:hidden shadow-[0_-10px_25px_rgba(0,0,0,0.8)]">
+          <div className="text-left truncate max-w-[150px]">
+            <span className="text-[8px] font-black uppercase text-zinc-500 block">Veículo:</span>
+            <span className="text-xs font-black text-white font-mono truncate block">{vehiclePlate || 'Sem placa'}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleAdvanceToItems}
+            className="flex-1 py-3.5 px-4 bg-[#FF2D55] text-white rounded-xl font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-red-900/40 cursor-pointer"
+          >
+            <span>Avançar para Itens</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {step === 'ITENS' && (
+        <div className="fixed bottom-0 left-0 right-0 p-3 bg-black/95 backdrop-blur-lg border-t border-white/10 flex items-center justify-between gap-3 z-50 md:hidden shadow-[0_-10px_25px_rgba(0,0,0,0.8)]">
+          <div className="text-left">
+            <span className="text-[8px] font-black uppercase text-zinc-500 block">Total:</span>
+            <span className="text-sm font-black text-[#FF2D55] font-mono">
+              R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleFinalize}
+            disabled={isSaving}
+            className="flex-1 py-3.5 px-4 bg-[#FF2D55] text-white rounded-xl font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-red-900/40 cursor-pointer disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            <span>Concluir Nota</span>
+          </button>
+        </div>
+      )}
 
       {/* RENDER TARGET HIDDEN PARA EXPORTAÇÃO HD DE NOTA */}
       <div id="render-target-hidden" style={{ position: 'fixed', top: '-10000px', left: '-10000px', width: '794px' }} />
