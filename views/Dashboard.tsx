@@ -70,8 +70,8 @@ const Dashboard: React.FC<{ session?: UserSession }> = ({ session }) => {
 
     // 6. Peças utilizadas
     const totalPartsUsed = orders.reduce((acc, curr) => {
-      const pItems = (Array.isArray(curr?.items) ? curr.items : []).filter(i => i && i.type === 'PART');
-      return acc + pItems.reduce((pAcc, pCurr) => pAcc + (Number(pCurr?.quantity) || 1), 0);
+      const pItems = (curr.items || []).filter(i => i.type === 'PART');
+      return acc + pItems.reduce((pAcc, pCurr) => pAcc + (pCurr.quantity || 1), 0);
     }, 0);
 
     // 7. Orçamentos pendentes

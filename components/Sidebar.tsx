@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Car, PlusSquare, FileText, Package, UserCheck,
   Settings, Wrench, ChevronRight, DollarSign, Smartphone, X, PieChart, CalendarDays, Sparkles,
   BookOpen, ClipboardCheck, Truck, BarChart3, Megaphone, Star, Repeat, MessageCircle,
-  Camera, Lock, Database
+  Camera, Lock
 } from 'lucide-react';
 import KaenLogo from './KaenLogo';
 
@@ -45,7 +45,6 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
     { category: 'INTELIGÊNCIA & ARQUIVOS', items: [
       { name: 'IA KAEN Assistente', icon: Sparkles, path: '/ai-marketing', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Central de Fotos', icon: Camera, path: '/gallery', roles: ['Dono', 'Recepção', 'Funcionário'] },
-      { name: 'Bancos & Supabase', icon: Database, isAction: true, path: '#bancos', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Dossiê do Sistema (PDF)', icon: BookOpen, path: '/project-dossier', roles: ['Dono', 'Recepção', 'Funcionário'] },
       { name: 'Usuários & Permissões', icon: Lock, path: '/users', roles: ['Dono'] },
     ]},
@@ -83,48 +82,27 @@ const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
               <div key={cat.category} className="space-y-3">
                 <p className="text-[9px] font-black text-zinc-700 uppercase tracking-[0.4em] ml-7 italic">{cat.category}</p>
                 <div className="space-y-2">
-                  {filteredItems.map((item: any) => {
-                    if (item.isAction) {
-                      return (
-                        <button
-                          key={item.name}
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            window.dispatchEvent(new CustomEvent('kaen_open_database_modal'));
-                          }}
-                          className="w-full flex items-center justify-between px-7 py-4 rounded-[2.5rem] transition-all duration-300 group text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 cursor-pointer"
-                        >
+                  {filteredItems.map((item) => (
+                    <NavLink
+                      key={item.path} to={item.path} onClick={onClose}
+                      className={({ isActive }) => `
+                        flex items-center justify-between px-7 py-4 rounded-[2.5rem] transition-all duration-500 group relative
+                        ${isActive 
+                          ? 'bg-[#FF2D55] text-white shadow-[0_20px_50px_rgba(255,45,85,0.3)]' 
+                          : 'text-zinc-500 hover:bg-white/5 hover:text-white'}
+                      `}
+                    >
+                      {({ isActive }) => (
+                        <>
                           <div className="flex items-center space-x-5">
-                            <item.icon size={20} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                            <item.icon size={20} className={isActive ? 'text-white' : 'text-zinc-600 group-hover:text-[#FF2D55]'} />
                             <span className="font-black text-[10px] uppercase tracking-[0.2em] italic">{item.name}</span>
                           </div>
-                          <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">FAILOVER</span>
-                        </button>
-                      );
-                    }
-                    return (
-                      <NavLink
-                        key={item.path} to={item.path} onClick={onClose}
-                        className={({ isActive }) => `
-                          flex items-center justify-between px-7 py-4 rounded-[2.5rem] transition-all duration-500 group relative
-                          ${isActive 
-                            ? 'bg-[#FF2D55] text-white shadow-[0_20px_50px_rgba(255,45,85,0.3)]' 
-                            : 'text-zinc-500 hover:bg-white/5 hover:text-white'}
-                        `}
-                      >
-                        {({ isActive }) => (
-                          <>
-                            <div className="flex items-center space-x-5">
-                              <item.icon size={20} className={isActive ? 'text-white' : 'text-zinc-600 group-hover:text-[#FF2D55]'} />
-                              <span className="font-black text-[10px] uppercase tracking-[0.2em] italic">{item.name}</span>
-                            </div>
-                            {isActive && <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_10px_white]"></div>}
-                          </>
-                        )}
-                      </NavLink>
-                    );
-                  })}
+                          {isActive && <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_10px_white]"></div>}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
                 </div>
               </div>
             );

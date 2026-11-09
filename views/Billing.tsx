@@ -70,28 +70,24 @@ const Billing: React.FC<{ session?: UserSession; syncData?: (key: string, data: 
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const overdueOrders = orders.filter(o => o && o.paymentStatus !== PaymentStatus.PAGO);
+  const overdueOrders = orders.filter(o => o.paymentStatus !== PaymentStatus.PAGO);
   
-  const filtered = overdueOrders.filter(o => {
-    if (!o) return false;
-    const term = (searchTerm || '').trim().toLowerCase();
-    return !term ||
-      String(o.clientName || '').toLowerCase().includes(term) || 
-      String(o.osNumber || '').includes(term);
-  });
+  const filtered = overdueOrders.filter(o => 
+    o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    o.osNumber.includes(searchTerm)
+  );
 
-  const totalInArrears = overdueOrders.reduce((acc, curr) => acc + (Number(curr?.totalValue) || 0), 0);
+  const totalInArrears = overdueOrders.reduce((acc, curr) => acc + curr.totalValue, 0);
   const debtorCount = new Set(overdueOrders.map(o => o.clientId)).size;
 
   const getBillingMessage = (os: ServiceOrder) => {
-    const totalFmt = (Number(os?.totalValue) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    const osNum = String(os?.osNumber || '000000');
-    const cName = String(os?.clientName || 'Cliente');
+    const client = clients.find(c => c.id === os.clientId);
+    const dateStr = new Date(os.createdAt).toLocaleDateString('pt-BR');
     
     const baseMessages = {
-      mild: `Olá, ${cName}! Passando para lembrar da nota #${osNum} (R$ ${totalFmt}). Precisando de algo ou do link para pagamento? Abraço!`,
-      formal: `AVISO FINANCEIRO: Prezado(a) ${cName}, consta em aberto o serviço #${osNum} no valor de R$ ${totalFmt}. Solicitamos a regularização ou o envio do comprovante.`,
-      final: `URGENTE: Notificação final de débito - OS #${osNum}. Sr(a) ${cName}, pedimos contato imediato para evitar restrições em seu cadastro conosco.`
+      mild: `Olá, ${os.clientName}! Passando para lembrar da nota #${os.osNumber} (R$ ${os.totalValue.toLocaleString('pt-BR')}). Precisando de algo ou do link para pagamento? Abraço!`,
+      formal: `AVISO FINANCEIRO: Prezado(a) ${os.clientName}, consta em aberto o serviço #${os.osNumber} no valor de R$ ${os.totalValue.toLocaleString('pt-BR')}. Solicitamos a regularização ou o envio do comprovante.`,
+      final: `URGENTE: Notificação final de débito - OS #${os.osNumber}. Sr(a) ${os.clientName}, pedimos contato imediato para evitar restrições em seu cadastro conosco.`
     };
 
     return baseMessages[billingLevel];

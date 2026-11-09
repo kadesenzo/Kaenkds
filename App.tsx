@@ -32,21 +32,14 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
 import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './src/lib/firebase';
-import { mergeUniqueById } from './src/lib/storage';
 
 // Global Cloud Sync Interceptor variables
 let isApplyingRemoteUpdate = false;
-if (typeof window !== 'undefined') {
-  (window as any).__kaen_set_remote_updating = (val: boolean) => {
-    isApplyingRemoteUpdate = val;
-  };
-}
 const debounceTimers: Record<string, any> = {};
 
 function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   if (isApplyingRemoteUpdate) return;
-  // Guard: Only process the master shared namespace key once to avoid write amplification
-  if (!key.startsWith('kaenpro_rafael_')) return;
+  if (!key.startsWith('kaenpro_') && !key.startsWith('kaen_')) return;
 
   if (debounceTimers[key]) {
     clearTimeout(debounceTimers[key]);
@@ -55,11 +48,14 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   debounceTimers[key] = setTimeout(async () => {
     try {
       const parsed = JSON.parse(value);
-      const cleanKey = key.replace(/^kaenpro_rafael_/, '');
+      const cleanKey = key.replace(/^kaenpro_[^_]+_/, '').replace(/^kaen_/, '');
       const sharedKey = `kaenpro_rafael_${cleanKey}`;
 
-      // 1. Direct Firestore cloud persistence (guarded by quota circuit breaker)
+      // 1. Direct Firestore cloud persistence
       await saveWorkshopFieldToCloud(sharedKey, parsed);
+      if (key !== sharedKey) {
+        await saveWorkshopFieldToCloud(key, parsed);
+      }
 
       // 2. Server API sync & real-time broadcast
       await fetch(`/api/sync/${tenant || 'rafael'}/${cleanKey}`, {
@@ -70,7 +66,7 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
     } catch (err) {
       // ignore parse or network error
     }
-  }, 500);
+  }, 350);
 }
 
 const App: React.FC = () => {
@@ -166,24 +162,8 @@ const App: React.FC = () => {
               for (const [k, v] of Object.entries(cloudFirestoreData)) {
                 if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
                 const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
-                
-                if (Array.isArray(v)) {
-                  let localArr: any[] = [];
-                  try {
-                    const raw = localStorage.getItem(`kaenpro_rafael_${cleanKey}`) || localStorage.getItem(`kaen_${cleanKey}`);
-                    if (raw) localArr = JSON.parse(raw);
-                  } catch (e) {}
-                  const merged = mergeUniqueById(localArr, v);
-                  const str = JSON.stringify(merged);
-                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
-                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
-                  localStorage.setItem(`kaen_${cleanKey}`, str);
-                } else {
-                  const str = JSON.stringify(v);
-                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
-                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
-                  localStorage.setItem(`kaen_${cleanKey}`, str);
-                }
+                localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, JSON.stringify(v));
+                localStorage.setItem(`kaenpro_rafael_${cleanKey}`, JSON.stringify(v));
               }
             } finally {
               isApplyingRemoteUpdate = false;
@@ -201,23 +181,8 @@ const App: React.FC = () => {
           isApplyingRemoteUpdate = true;
           try {
             for (const [key, value] of Object.entries(data)) {
-              if (Array.isArray(value)) {
-                let localArr: any[] = [];
-                try {
-                  const raw = localStorage.getItem(`kaenpro_rafael_${key}`) || localStorage.getItem(`kaen_${key}`);
-                  if (raw) localArr = JSON.parse(raw);
-                } catch (e) {}
-                const merged = mergeUniqueById(localArr, value);
-                const str = JSON.stringify(merged);
-                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
-                localStorage.setItem(`kaenpro_rafael_${key}`, str);
-                localStorage.setItem(`kaen_${key}`, str);
-              } else {
-                const str = JSON.stringify(value);
-                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
-                localStorage.setItem(`kaenpro_rafael_${key}`, str);
-                localStorage.setItem(`kaen_${key}`, str);
-              }
+              localStorage.setItem(`kaenpro_${tenant}_${key}`, JSON.stringify(value));
+              localStorage.setItem(`kaenpro_rafael_${key}`, JSON.stringify(value));
             }
           } finally {
             isApplyingRemoteUpdate = false;
@@ -393,9 +358,9 @@ const App: React.FC = () => {
           }
         }
 
-        // Direct Firestore writes - only master shared keys to conserve daily quota
+        // Direct Firestore writes
         for (const [k, val] of Object.entries(allLocalData)) {
-          if (k.startsWith('kaenpro_rafael_') && val !== null && typeof val !== 'undefined') {
+          if (val !== null && typeof val !== 'undefined') {
             await saveWorkshopFieldToCloud(k, val);
           }
         }
@@ -562,8 +527,8 @@ const App: React.FC = () => {
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
         <Route path="/dashboard" element={<PrivateLayout><Dashboard /></PrivateLayout>} />
         <Route path="/calendar" element={<PrivateLayout><Calendar /></PrivateLayout>} />
-        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} session={session!} syncData={syncData} /></PrivateLayout>} />
-        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} /></PrivateLayout>} />
+        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder /></PrivateLayout>} />
         <Route path="/billing" element={<PrivateLayout><Billing /></PrivateLayout>} />
         <Route path="/financial" element={<PrivateLayout><Financial /></PrivateLayout>} />
         <Route path="/inventory" element={<PrivateLayout><Inventory /></PrivateLayout>} />

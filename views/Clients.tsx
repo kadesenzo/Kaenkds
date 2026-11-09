@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Users, Search, UserPlus, Phone, FileText, ChevronRight, X, User, MessageCircle, Copy, Trash2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Users, Search, UserPlus, Phone, FileText, ChevronRight, X, User, MessageCircle, Copy, Trash2, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Vehicle, ServiceOrder, UserSession } from '../types';
-import { getWorkshopData, saveWorkshopData, mergeUniqueById } from '../src/lib/storage';
 
 interface ClientsProps {
   role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque' | string;
@@ -31,8 +30,10 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
   });
 
   const loadData = () => {
-    const loadedClients = getWorkshopData<Client[]>('clients', session?.username, []);
-    setClients(loadedClients);
+    if (session) {
+      const saved = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]');
+      setClients(saved);
+    }
   };
 
   useEffect(() => {
@@ -42,7 +43,7 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
   }, [session]);
 
   const handleSave = async () => {
-    if (!newClient.name || !newClient.phone || !newVehicle.plate) {
+    if (!newClient.name || !newClient.phone || !newVehicle.plate || !session || !syncData) {
       alert("ERRO: Nome, Telefone e Placa do Veículo são obrigatórios.");
       return;
     }
@@ -57,26 +58,20 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
     const vehicle: Vehicle = {
       id: Math.random().toString(36).substr(2, 9),
       clientId: clientId,
-      plate: newVehicle.plate.toUpperCase().trim(),
-      model: newVehicle.model.toUpperCase().trim() || 'VEÍCULO',
-      brand: newVehicle.brand.toUpperCase().trim() || 'GERAL',
-      year: newVehicle.year || 'N/A',
+      plate: newVehicle.plate.toUpperCase(),
+      model: newVehicle.model,
+      brand: newVehicle.brand,
+      year: newVehicle.year,
       km: parseFloat(newVehicle.km) || 0
     };
 
-    const currentClients = getWorkshopData<Client[]>('clients', session?.username, []);
-    const updatedClients = mergeUniqueById(currentClients, [client]);
-
-    const currentVehicles = getWorkshopData<Vehicle[]>('vehicles', session?.username, []);
-    const updatedVehicles = mergeUniqueById(currentVehicles, [vehicle]);
+    const updatedClients = [...clients, client];
+    const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
+    const updatedVehicles = [...savedVehicles, vehicle];
 
     setClients(updatedClients);
-    await saveWorkshopData('clients', updatedClients, session?.username);
-    await saveWorkshopData('vehicles', updatedVehicles, session?.username);
-    if (syncData) {
-      await syncData('clients', updatedClients);
-      await syncData('vehicles', updatedVehicles);
-    }
+    await syncData('clients', updatedClients);
+    await syncData('vehicles', updatedVehicles);
     
     setShowModal(false);
     setNewClient({ name: '', phone: '', document: '', observations: '' });
@@ -84,26 +79,23 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
   };
 
   const handleDeleteClient = async (clientId: string, clientName: string) => {
-    if (role !== 'Dono') {
+    if (role !== 'Dono' || !session || !syncData) {
       alert("Acesso Negado: Apenas o Administrador pode excluir clientes.");
       return;
     }
 
-    const confirmMessage = `⚠️ ATENÇÃO: Tem certeza que deseja excluir o cliente ${clientName}?\n\nEsta ação excluirá o cadastro local e da nuvem.`;
+    const confirmMessage = `⚠️ ATENÇÃO: Tem certeza que deseja excluir o cliente ${clientName}?\n\nTODAS as notas e veículos vinculados a este cliente serão apagados PERMANENTEMENTE.\n\nEsta ação não pode ser desfeita.`;
     
     if (confirm(confirmMessage)) {
-      const currentClients = getWorkshopData<Client[]>('clients', session?.username, []);
-      const updatedClients = currentClients.filter(c => c.id !== clientId);
+      const updatedClients = clients.filter(c => c.id !== clientId);
+      const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_vehicles`) || '[]');
+      const updatedVehicles = savedVehicles.filter((v: Vehicle) => v.clientId !== clientId);
+      const savedOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
+      const updatedOrders = savedOrders.filter((o: ServiceOrder) => o.clientId !== clientId);
 
-      const currentVehicles = getWorkshopData<Vehicle[]>('vehicles', session?.username, []);
-      const updatedVehicles = currentVehicles.filter(v => v.clientId !== clientId);
-
-      await saveWorkshopData('clients', updatedClients, session?.username);
-      await saveWorkshopData('vehicles', updatedVehicles, session?.username);
-      if (syncData) {
-        await syncData('clients', updatedClients);
-        await syncData('vehicles', updatedVehicles);
-      }
+      await syncData('clients', updatedClients);
+      await syncData('vehicles', updatedVehicles);
+      await syncData('orders', updatedOrders);
       
       setClients(updatedClients);
     }
@@ -116,20 +108,18 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 w-full pb-16">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">Clientes Cadastrados</h1>
-          <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">
-            {clients.length} {clients.length === 1 ? 'cliente protegido no banco de dados' : 'clientes protegidos no banco de dados'}
-          </p>
+          <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter">Clientes</h1>
+          <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Base de dados sincronizada de <span className="text-white">{session?.username}</span></p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
-          className="bg-[#FF2D55] px-6 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center space-x-2 hover:bg-[#D11D40] transition-all shadow-xl shadow-red-900/20 active:scale-95 cursor-pointer"
+          className="bg-[#FF2D55] px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center space-x-2 hover:bg-[#D11D40] transition-all shadow-xl shadow-red-900/20 active:scale-95"
         >
           <UserPlus size={18} />
-          <span>Novo Cliente</span>
+          <span>Novo Registro</span>
         </button>
       </div>
 
@@ -140,8 +130,8 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Pesquisar por nome, placa ou contato..." 
-            className="w-full bg-transparent border-none py-3.5 pl-12 pr-4 focus:ring-0 text-white font-bold placeholder-zinc-800 outline-none"
+            placeholder="Pesquisar por nome, documento ou contato..." 
+            className="w-full bg-transparent border-none py-3.5 pl-12 pr-4 focus:ring-0 text-white font-bold placeholder-zinc-800"
           />
         </div>
       </div>
@@ -196,98 +186,72 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
         </div>
       )}
 
-      {/* Modal Cadastro - Otimizado para Mobile */}
+      {/* Modal Cadastro */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-2xl p-5 sm:p-10 rounded-[2rem] sm:rounded-[3rem] shadow-2xl relative animate-in zoom-in max-h-[92vh] overflow-y-auto my-auto">
-            <button 
-              onClick={() => setShowModal(false)} 
-              className="absolute top-4 right-4 sm:top-8 sm:right-8 text-zinc-500 hover:text-white p-2 transition-colors cursor-pointer"
-            >
-              <X size={24} />
-            </button>
-            <h2 className="text-xl sm:text-2xl font-black mb-6 sm:mb-8 flex items-center gap-3 italic uppercase tracking-tighter">
-              <UserPlus className="text-[#FF2D55]" size={26} />
-              Novo Cliente Cloud
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-2xl p-10 rounded-[3rem] shadow-2xl relative animate-in zoom-in">
+            <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-colors"><X size={28} /></button>
+            <h2 className="text-2xl font-black mb-10 flex items-center gap-4 italic uppercase tracking-tighter">
+              <UserPlus className="text-[#FF2D55]" size={32} />
+              Novo Registro Cloud
             </h2>
             
-            <div className="space-y-6 sm:space-y-8">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="md:col-span-2 space-y-1.5">
+            <div className="space-y-10">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="md:col-span-2 space-y-2">
                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Nome Completo *</label>
                     <input 
                       type="text" 
                       value={newClient.name}
-                      onChange={(e) => setNewClient({...newClient, name: e.target.value.toUpperCase()})}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 sm:px-6 py-3.5 sm:py-4 text-white focus:border-[#FF2D55] outline-none font-bold placeholder-zinc-800 uppercase text-xs"
-                      placeholder="NOME DO CLIENTE"
+                      onChange={(e) => setNewClient({...newClient, name: e.target.value})}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-[#FF2D55] outline-none font-bold placeholder-zinc-800"
+                      placeholder="NOME DO PROPRIETÁRIO"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">WhatsApp / Celular *</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">WhatsApp *</label>
                     <input 
                       type="text" 
                       value={newClient.phone}
                       onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 sm:px-6 py-3.5 sm:py-4 text-white focus:border-[#FF2D55] outline-none font-bold text-xs"
-                      placeholder="(13) 99689-2958"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-[#FF2D55] outline-none font-bold"
+                      placeholder="(00) 00000-0000"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">CPF / CNPJ (Opcional)</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">CPF/CNPJ</label>
                     <input 
                       type="text" 
                       value={newClient.document}
                       onChange={(e) => setNewClient({...newClient, document: e.target.value})}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 sm:px-6 py-3.5 sm:py-4 text-white focus:border-[#FF2D55] outline-none font-bold text-xs"
-                      placeholder="000.000.000-00"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-4 text-white focus:border-[#FF2D55] outline-none font-bold"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4 p-5 sm:p-7 bg-zinc-950/60 rounded-2xl sm:rounded-[2rem] border border-zinc-800">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#FF2D55]">Primeiro Veículo do Cliente</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Placa do Veículo *</label>
+              <div className="space-y-6 p-8 bg-zinc-950/50 rounded-[2rem] border border-zinc-800">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#FF2D55]">Primeiro Veículo da Frota</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Placa *</label>
                     <input 
                       type="text" 
                       value={newVehicle.plate}
                       onChange={(e) => setNewVehicle({...newVehicle, plate: e.target.value.toUpperCase()})}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-black tracking-widest text-xs uppercase"
-                      placeholder="ABC-1D23"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-black tracking-widest"
+                      placeholder="ABC-1234"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Modelo / Veículo</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Modelo</label>
                     <input 
                       type="text" 
                       value={newVehicle.model}
-                      onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value.toUpperCase()})}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-bold text-xs uppercase"
-                      placeholder="Ex: Honda Civic"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">KM Inicial</label>
-                    <input 
-                      type="number" 
-                      value={newVehicle.km}
-                      onChange={(e) => setNewVehicle({...newVehicle, km: e.target.value})}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-bold text-xs"
-                      placeholder="Ex: 85000"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Ano / Fab.</label>
-                    <input 
-                      type="text" 
-                      value={newVehicle.year}
-                      onChange={(e) => setNewVehicle({...newVehicle, year: e.target.value})}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-bold text-xs"
-                      placeholder="Ex: 2020"
+                      onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:border-[#FF2D55] outline-none font-bold"
+                      placeholder="Ex: Corolla"
                     />
                   </div>
                 </div>
@@ -295,9 +259,9 @@ const Clients: React.FC<ClientsProps> = ({ role, session, syncData }) => {
 
               <button 
                 onClick={handleSave}
-                className="w-full bg-[#FF2D55] hover:bg-[#D11D40] py-4 sm:py-5 rounded-2xl sm:rounded-[2.5rem] font-black uppercase text-xs tracking-[0.25em] transition-all shadow-2xl shadow-red-900/40 active:scale-[0.98] cursor-pointer text-white"
+                className="w-full bg-[#FF2D55] py-6 rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] hover:bg-[#D11D40] transition-all shadow-2xl shadow-red-900/40 active:scale-[0.98]"
               >
-                Salvar no Banco de Dados
+                Efetivar e Sincronizar
               </button>
             </div>
           </div>

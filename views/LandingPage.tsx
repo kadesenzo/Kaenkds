@@ -27,7 +27,7 @@ const LandingPage: React.FC = () => {
     const message = `Olá! Sou ${bookingForm.name}. Vi o site da Kaen e gostaria de agendar um(a) ${bookingForm.service} para o dia ${bookingForm.date} às ${bookingForm.time} no meu ${bookingForm.vehicle}.`;
     const phone = '5513996892958'; 
     
-    const savedApps = JSON.parse(localStorage.getItem('kaenpro_rafael_appointments') || localStorage.getItem('kaen_appointments') || '[]');
+    const savedApps = JSON.parse(localStorage.getItem('kaen_appointments') || '[]');
     const newApp = {
       id: Math.random().toString(36).substr(2, 9),
       ...bookingForm,
@@ -39,48 +39,6 @@ const LandingPage: React.FC = () => {
     };
     const updatedApps = [...savedApps, newApp];
     localStorage.setItem('kaen_appointments', JSON.stringify(updatedApps));
-    localStorage.setItem('kaenpro_rafael_appointments', JSON.stringify(updatedApps));
-
-    // Also persist client directly into clients database if not exists
-    try {
-      const savedClients = JSON.parse(localStorage.getItem('kaenpro_rafael_clients') || localStorage.getItem('kaen_clients') || '[]');
-      const cleanPhone = bookingForm.phone.replace(/\D/g, '');
-      const clientExists = savedClients.some((c: any) => c.phone && c.phone.replace(/\D/g, '') === cleanPhone);
-
-      if (!clientExists && bookingForm.name && cleanPhone) {
-        const newClientId = Math.random().toString(36).substr(2, 9);
-        const newClient = {
-          id: newClientId,
-          name: bookingForm.name.toUpperCase(),
-          phone: bookingForm.phone,
-          document: 'VIA SITE',
-          observations: `Cadastrado pelo site para serviço: ${bookingForm.service} (${bookingForm.vehicle})`,
-          createdAt: new Date().toISOString()
-        };
-        const updatedClients = [...savedClients, newClient];
-        localStorage.setItem('kaenpro_rafael_clients', JSON.stringify(updatedClients));
-        localStorage.setItem('kaen_clients', JSON.stringify(updatedClients));
-        await saveWorkshopFieldToCloud('kaenpro_rafael_clients', updatedClients);
-
-        // Also create preliminary vehicle entry
-        const savedVehicles = JSON.parse(localStorage.getItem('kaenpro_rafael_vehicles') || localStorage.getItem('kaen_vehicles') || '[]');
-        const newVehicle = {
-          id: Math.random().toString(36).substr(2, 9),
-          clientId: newClientId,
-          model: bookingForm.vehicle.toUpperCase(),
-          plate: 'AGENDADO',
-          brand: 'GERAL',
-          year: 'N/A',
-          km: 0
-        };
-        const updatedVehicles = [...savedVehicles, newVehicle];
-        localStorage.setItem('kaenpro_rafael_vehicles', JSON.stringify(updatedVehicles));
-        localStorage.setItem('kaen_vehicles', JSON.stringify(updatedVehicles));
-        await saveWorkshopFieldToCloud('kaenpro_rafael_vehicles', updatedVehicles);
-      }
-    } catch (e) {
-      console.warn("Client auto-save warning:", e);
-    }
 
     // Persist immediately to cloud endpoints and Firestore
     try {
@@ -94,11 +52,11 @@ const LandingPage: React.FC = () => {
     }
     try {
       await saveWorkshopFieldToCloud('kaenpro_rafael_appointments', updatedApps);
+      await saveWorkshopFieldToCloud('kaen_appointments', updatedApps);
     } catch (err) {
       // offline fallback
     }
 
-    window.dispatchEvent(new CustomEvent('kaen_storage_updated'));
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
     setShowBooking(false);
   };

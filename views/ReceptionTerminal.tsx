@@ -8,7 +8,6 @@ import { ServiceOrder, OSStatus, PaymentStatus, UserSession, Part, Client } from
 import Invoice from '../components/Invoice';
 import PatioCheckinModal from '../components/PatioCheckinModal';
 import AntesEDepoisModal from '../components/AntesEDepoisModal';
-import { getWorkshopData, saveWorkshopData } from '../src/lib/storage';
 
 interface ReceptionTerminalProps {
   session?: UserSession;
@@ -25,30 +24,25 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [showPatioModal, setShowPatioModal] = useState(false);
   const [selectedAntesDepoisOs, setSelectedAntesDepoisOs] = useState<ServiceOrder | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
 
   // Load state and listen to local updates in real-time
   useEffect(() => {
-    const loadData = () => {
-      const username = session?.username || 'rafael';
-      setOrders(getWorkshopData<ServiceOrder[]>('orders', username, []));
-      setParts(getWorkshopData<Part[]>('parts', username, []));
-      setClients(getWorkshopData<Client[]>('clients', username, []));
-    };
-    
-    loadData();
-    window.addEventListener('kaen_storage_updated', loadData);
-    // Polling as a robust safety fallback
-    const interval = setInterval(loadData, 3000);
-    return () => {
-      window.removeEventListener('kaen_storage_updated', loadData);
-      clearInterval(interval);
-    };
+    if (session) {
+      const loadData = () => {
+        setOrders(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]'));
+        setParts(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_parts`) || '[]'));
+        setClients(JSON.parse(localStorage.getItem(`kaenpro_${session.username}_clients`) || '[]'));
+      };
+      
+      loadData();
+      window.addEventListener('kaen_storage_updated', loadData);
+      // Polling as a robust safety fallback
+      const interval = setInterval(loadData, 3000);
+      return () => {
+        window.removeEventListener('kaen_storage_updated', loadData);
+        clearInterval(interval);
+      };
+    }
   }, [session]);
 
   const addLog = async (action: string) => {
@@ -91,7 +85,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     // Check administrative / user permission
     const permissions = JSON.parse(localStorage.getItem(`kaenpro_${session?.username}_permissions`) || '{"canEditPrices":true,"canDelete":true,"canCloseOS":true}');
     if (!permissions.canEditPrices) {
-      showToast("ACESSO NEGADO: Você não tem permissão para editar preços ou orçamentos. Contate o Administrador.", "error");
+      alert("ACESSO NEGADO: Você não tem permissão para editar preços ou orçamentos. Contate o Administrador.");
       return;
     }
     setEditingOrder({ ...order });
@@ -116,13 +110,13 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     if (selectedOrder?.id === updatedFinal.id) {
       setSelectedOrder(updatedFinal);
     }
-    showToast("Orçamento atualizado com sucesso!", "success");
+    alert("Orçamento atualizado com sucesso!");
   };
 
   const handleFinalizeService = async (order: ServiceOrder) => {
     const permissions = JSON.parse(localStorage.getItem(`kaenpro_${session?.username}_permissions`) || '{"canEditPrices":true,"canDelete":true,"canCloseOS":true}');
     if (!permissions.canCloseOS) {
-      showToast("ACESSO NEGADO: Você não tem permissão para fechar Ordens de Serviço. Contate o Administrador.", "error");
+      alert("ACESSO NEGADO: Você não tem permissão para fechar Ordens de Serviço. Contate o Administrador.");
       return;
     }
 
@@ -177,54 +171,28 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
       console.error("Failed to sync invoice to admin monitoring logs", err);
     }
 
-    showToast("ATENDIMENTO FINALIZADO COM SUCESSO! Nota fiscal emitida e lançada no fluxo de caixa.", "success");
+    alert("ATENDIMENTO FINALIZADO COM SUCESSO! Nota fiscal emitida e lançada no fluxo de caixa.");
     setSelectedOrder(null);
   };
 
   const filteredOrders = useMemo(() => {
-    if (!search.trim()) return orders;
-    const raw = search.trim().toLowerCase();
-    const norm = search.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    return orders.filter(o => {
-      const plateClean = (o.vehiclePlate || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const model = (o.vehicleModel || '').toLowerCase();
-      const client = (o.clientName || '').toLowerCase();
-      const phone = (o.clientPhone || '').replace(/[^0-9]/g, '');
-      const osNum = (o.osNumber || '');
-
-      return (
-        plateClean.includes(norm) ||
-        (o.vehiclePlate || '').toLowerCase().includes(raw) ||
-        model.includes(raw) ||
-        client.includes(raw) ||
-        phone.includes(norm) ||
-        osNum.includes(raw)
-      );
-    });
+    return orders.filter(o => 
+      o.clientName.toLowerCase().includes(search.toLowerCase()) ||
+      o.vehiclePlate.toLowerCase().includes(search.toLowerCase()) ||
+      o.osNumber.includes(search)
+    );
   }, [orders, search]);
 
   // Group by status context for clear visibility
   const waitingReceptionCount = useMemo(() => {
+    // Orders marked as EN_ANDAMENTO but completed by mechanic can be marked with a special local property, OR are simply EN_ANDAMENTO waiting checkout.
+    // Let's look for orders where status is EM_ANDAMENTO but mechanic flagged them
     return orders.filter(o => o.status === OSStatus.EM_ANDAMENTO || o.problem.includes('CONCLUÍDO PELO MECÂNICO')).length;
   }, [orders]);
 
   return (
     <div className="space-y-12 animate-in fade-in duration-500 p-6 md:p-14 pb-48 w-full max-w-[1400px]">
       
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`p-4 rounded-2xl flex items-center justify-between border shadow-2xl animate-in slide-in-from-top-4 duration-300 ${toast.type === 'error' ? 'bg-red-500/20 border-red-500/40 text-red-200' : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'}`}>
-          <div className="flex items-center gap-3">
-            {toast.type === 'error' ? <AlertTriangle size={20} className="text-red-400" /> : <CheckCircle2 size={20} className="text-emerald-400" />}
-            <span className="text-xs font-black uppercase tracking-wider">{toast.message}</span>
-          </div>
-          <button onClick={() => setToast(null)} className="text-white/60 hover:text-white p-1">
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Reception Panel Intro Header */}
       <div className="w-full glass-card p-12 rounded-[4rem] border border-white/5 relative overflow-hidden group shadow-2xl">
          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
@@ -266,23 +234,14 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
             
             {/* Search filter */}
             <div className="relative bg-black/40 border border-white/5 rounded-full px-6 py-4 flex items-center mb-8">
-              <Search className="text-zinc-600 mr-4 shrink-0" size={20} />
+              <Search className="text-zinc-600 mr-4" size={20} />
               <input 
                 type="text" 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
-                placeholder="BUSCAR POR PLACA, CARRO, CLIENTE OU TELEFONE..." 
+                placeholder="PROCURAR POR PLACA, STATUS OU CLIENTE..." 
                 className="bg-transparent border-none text-xs font-black uppercase tracking-widest text-white outline-none w-full placeholder-zinc-700"
               />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="p-1.5 text-zinc-500 hover:text-white rounded-full bg-zinc-900 transition-colors cursor-pointer shrink-0 ml-2"
-                >
-                  <X size={14} />
-                </button>
-              )}
             </div>
 
             <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 no-scrollbar">
@@ -411,7 +370,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                 <div className="space-y-3">
                   <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block">ITENS DO ORÇAMENTO</span>
                   <div className="max-h-40 overflow-y-auto pr-1 space-y-2 no-scrollbar">
-                    {(Array.isArray(selectedOrder?.items) ? selectedOrder.items : []).map((item, index) => (
+                    {selectedOrder.items.map((item, index) => (
                       <div key={item.id} className="flex justify-between items-center p-3.5 bg-zinc-900/40 rounded-xl border border-white/5 text-[11px]">
                         <span className="font-bold text-zinc-300 uppercase max-w-[200px] truncate">{item.quantity}x {item.description}</span>
                         <span className="font-mono text-zinc-400">R$ {(item.quantity * item.unitPrice).toLocaleString('pt-BR')}</span>
@@ -500,7 +459,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                 />
               </div>
 
-              {(Array.isArray(editingOrder?.items) ? editingOrder.items : []).map((item, index) => (
+              {editingOrder.items.map((item, index) => (
                 <div key={item.id} className="p-4 bg-zinc-950 rounded-xl border border-white/5 space-y-4">
                   <p className="text-[9px] font-black text-[#FF2D55] uppercase tracking-widest italic">{item.type} - {item.description || "Sem Descrição"}</p>
                   <div className="grid grid-cols-2 gap-4">
