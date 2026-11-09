@@ -297,16 +297,45 @@
             letter-spacing: 0.2em;
         }
 
-        .invoice-preview-wrapper { width: 100%; display: flex; justify-content: center; padding: 40px 0; }
+        .invoice-preview-wrapper { 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            padding: 12px 0; 
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
         .invoice-container-scaled { 
-            width: 794px; transform-origin: top center; 
-            flex-shrink: 0; border-radius: 0; overflow: hidden; 
-            box-shadow: 0 60px 120px rgba(0,0,0,0.6);
+            width: 794px; 
+            transform-origin: top center; 
+            flex-shrink: 0; 
+            border-radius: 12px; 
+            box-shadow: 0 20px 70px rgba(0,0,0,0.6);
             background: #fff;
         }
 
-        @media (max-width: 850px) { .invoice-container-scaled { transform: scale(0.48); margin-bottom: -650px; } }
-        @media (max-width: 450px) { .invoice-container-scaled { transform: scale(0.35); margin-bottom: -850px; } }
+        @media (max-width: 850px) { 
+            .invoice-preview-wrapper {
+                justify-content: flex-start;
+                padding-bottom: 16px;
+            }
+            .invoice-container-scaled { 
+                transform: scale(0.62); 
+                transform-origin: top left;
+                margin-bottom: -400px;
+            } 
+        }
+        @media (max-width: 480px) { 
+            .invoice-preview-wrapper {
+                justify-content: flex-start;
+                padding-bottom: 16px;
+            }
+            .invoice-container-scaled { 
+                transform: scale(0.46); 
+                transform-origin: top left;
+                margin-bottom: -560px;
+            } 
+        }
 
         #render-target-hidden { position: absolute; left: -9999px; top: 0; width: 794px; min-height: 1123px; background: white; pointer-events: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }

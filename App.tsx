@@ -32,14 +32,21 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import { SyncStatus, UserSession } from './types';
 import { subscribeToWorkshopCloud, saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './src/lib/firebase';
+import { mergeUniqueById } from './src/lib/storage';
 
 // Global Cloud Sync Interceptor variables
 let isApplyingRemoteUpdate = false;
+if (typeof window !== 'undefined') {
+  (window as any).__kaen_set_remote_updating = (val: boolean) => {
+    isApplyingRemoteUpdate = val;
+  };
+}
 const debounceTimers: Record<string, any> = {};
 
 function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   if (isApplyingRemoteUpdate) return;
-  if (!key.startsWith('kaenpro_') && !key.startsWith('kaen_')) return;
+  // Guard: Only process the master shared namespace key once to avoid write amplification
+  if (!key.startsWith('kaenpro_rafael_')) return;
 
   if (debounceTimers[key]) {
     clearTimeout(debounceTimers[key]);
@@ -48,14 +55,11 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
   debounceTimers[key] = setTimeout(async () => {
     try {
       const parsed = JSON.parse(value);
-      const cleanKey = key.replace(/^kaenpro_[^_]+_/, '').replace(/^kaen_/, '');
+      const cleanKey = key.replace(/^kaenpro_rafael_/, '');
       const sharedKey = `kaenpro_rafael_${cleanKey}`;
 
-      // 1. Direct Firestore cloud persistence
+      // 1. Direct Firestore cloud persistence (guarded by quota circuit breaker)
       await saveWorkshopFieldToCloud(sharedKey, parsed);
-      if (key !== sharedKey) {
-        await saveWorkshopFieldToCloud(key, parsed);
-      }
 
       // 2. Server API sync & real-time broadcast
       await fetch(`/api/sync/${tenant || 'rafael'}/${cleanKey}`, {
@@ -66,7 +70,7 @@ function triggerDebouncedCloudSync(key: string, value: string, tenant: string) {
     } catch (err) {
       // ignore parse or network error
     }
-  }, 350);
+  }, 500);
 }
 
 const App: React.FC = () => {
@@ -132,9 +136,9 @@ const App: React.FC = () => {
   // Update starting workspace mode when session changes
   useEffect(() => {
     if (session) {
-      if (session.role === 'Funcionário') {
+      if (session.role === 'FuncionÃ¡rio') {
         setWorkspaceMode('MECANICO');
-      } else if (session.role === 'Recepção') {
+      } else if (session.role === 'RecepÃ§Ã£o') {
         setWorkspaceMode('RECEPCAO');
       } else {
         setWorkspaceMode('PRINCIPAL');
@@ -162,8 +166,24 @@ const App: React.FC = () => {
               for (const [k, v] of Object.entries(cloudFirestoreData)) {
                 if (typeof v === 'undefined' || k === 'lastUpdatedAt') continue;
                 const cleanKey = k.replace(/^kaenpro_[^_]+_/, '');
-                localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, JSON.stringify(v));
-                localStorage.setItem(`kaenpro_rafael_${cleanKey}`, JSON.stringify(v));
+                
+                if (Array.isArray(v)) {
+                  let localArr: any[] = [];
+                  try {
+                    const raw = localStorage.getItem(`kaenpro_rafael_${cleanKey}`) || localStorage.getItem(`kaen_${cleanKey}`);
+                    if (raw) localArr = JSON.parse(raw);
+                  } catch (e) {}
+                  const merged = mergeUniqueById(localArr, v);
+                  const str = JSON.stringify(merged);
+                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
+                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
+                  localStorage.setItem(`kaen_${cleanKey}`, str);
+                } else {
+                  const str = JSON.stringify(v);
+                  localStorage.setItem(`kaenpro_${tenant}_${cleanKey}`, str);
+                  localStorage.setItem(`kaenpro_rafael_${cleanKey}`, str);
+                  localStorage.setItem(`kaen_${cleanKey}`, str);
+                }
               }
             } finally {
               isApplyingRemoteUpdate = false;
@@ -181,8 +201,23 @@ const App: React.FC = () => {
           isApplyingRemoteUpdate = true;
           try {
             for (const [key, value] of Object.entries(data)) {
-              localStorage.setItem(`kaenpro_${tenant}_${key}`, JSON.stringify(value));
-              localStorage.setItem(`kaenpro_rafael_${key}`, JSON.stringify(value));
+              if (Array.isArray(value)) {
+                let localArr: any[] = [];
+                try {
+                  const raw = localStorage.getItem(`kaenpro_rafael_${key}`) || localStorage.getItem(`kaen_${key}`);
+                  if (raw) localArr = JSON.parse(raw);
+                } catch (e) {}
+                const merged = mergeUniqueById(localArr, value);
+                const str = JSON.stringify(merged);
+                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
+                localStorage.setItem(`kaenpro_rafael_${key}`, str);
+                localStorage.setItem(`kaen_${key}`, str);
+              } else {
+                const str = JSON.stringify(value);
+                localStorage.setItem(`kaenpro_${tenant}_${key}`, str);
+                localStorage.setItem(`kaenpro_rafael_${key}`, str);
+                localStorage.setItem(`kaen_${key}`, str);
+              }
             }
           } finally {
             isApplyingRemoteUpdate = false;
@@ -228,7 +263,7 @@ const App: React.FC = () => {
 
           if (data && data.type === "force_disconnect") {
             handleLogout();
-            alert("SUA CONEXÃO FOI ENCERRADA PELO ADMINISTRADOR DO SISTEMA: DISPOSITIVO REMOVIDO.");
+            alert("SUA CONEXÃƒO FOI ENCERRADA PELO ADMINISTRADOR DO SISTEMA: DISPOSITIVO REMOVIDO.");
             return;
           }
           
@@ -358,9 +393,9 @@ const App: React.FC = () => {
           }
         }
 
-        // Direct Firestore writes
+        // Direct Firestore writes - only master shared keys to conserve daily quota
         for (const [k, val] of Object.entries(allLocalData)) {
-          if (val !== null && typeof val !== 'undefined') {
+          if (k.startsWith('kaenpro_rafael_') && val !== null && typeof val !== 'undefined') {
             await saveWorkshopFieldToCloud(k, val);
           }
         }
@@ -372,7 +407,7 @@ const App: React.FC = () => {
           body: JSON.stringify(allLocalData)
         });
 
-        console.log("☁️ Forced full cloud backup completed successfully!");
+        console.log("â˜ï¸ Forced full cloud backup completed successfully!");
       } catch (err) {
         console.error("Forced cloud backup error:", err);
       } finally {
@@ -397,7 +432,7 @@ const App: React.FC = () => {
     setSyncStatus(SyncStatus.SYNCED);
   }, []);
 
-  const handleLogin = (username: string, role: 'Dono' | 'Funcionário' | 'Recepção', realUsername: string, activeUser: string) => {
+  const handleLogin = (username: string, role: 'Dono' | 'FuncionÃ¡rio' | 'RecepÃ§Ã£o', realUsername: string, activeUser: string) => {
     const newSession: UserSession = { 
       username, // always "rafael" (tenant)
       activeUser, // e.g. "eduardo"
@@ -454,15 +489,15 @@ const App: React.FC = () => {
     if (!session) return;
 
     if (mode === 'ADMIN' && session.role !== 'Dono') {
-      alert("ACESSO RECUSADO: Apenas Administradores podem acessar as configurações globais do sistema.");
+      alert("ACESSO RECUSADO: Apenas Administradores podem acessar as configuraÃ§Ãµes globais do sistema.");
       return;
     }
-    if (mode === 'RECEPCAO' && session.role === 'Funcionário') {
-      alert("ACESSO RECUSADO: Mecânicos de pista não têm permissão de acesso à Recepção.");
+    if (mode === 'RECEPCAO' && session.role === 'FuncionÃ¡rio') {
+      alert("ACESSO RECUSADO: MecÃ¢nicos de pista nÃ£o tÃªm permissÃ£o de acesso Ã  RecepÃ§Ã£o.");
       return;
     }
-    if (mode === 'MECANICO' && session.role === 'Recepção') {
-      alert("ACESSO RECUSADO: A recepção não tem acesso ao Terminal de Pista Técnico.");
+    if (mode === 'MECANICO' && session.role === 'RecepÃ§Ã£o') {
+      alert("ACESSO RECUSADO: A recepÃ§Ã£o nÃ£o tem acesso ao Terminal de Pista TÃ©cnico.");
       return;
     }
 
@@ -527,22 +562,22 @@ const App: React.FC = () => {
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />} />
         <Route path="/dashboard" element={<PrivateLayout><Dashboard /></PrivateLayout>} />
         <Route path="/calendar" element={<PrivateLayout><Calendar /></PrivateLayout>} />
-        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} /></PrivateLayout>} />
-        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder /></PrivateLayout>} />
+        <Route path="/orders" element={<PrivateLayout><ServiceOrders role={session?.role} session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/orders/new" element={<PrivateLayout><NewServiceOrder session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/billing" element={<PrivateLayout><Billing /></PrivateLayout>} />
         <Route path="/financial" element={<PrivateLayout><Financial /></PrivateLayout>} />
-        <Route path="/inventory" element={<PrivateLayout><Inventory /></PrivateLayout>} />
+        <Route path="/inventory" element={<PrivateLayout>{session && ['Dono', 'RecepÃ§Ã£o'].includes(session.role) ? <Inventory session={session} /> : <Navigate to="/dashboard" replace />}</PrivateLayout>} />
         <Route path="/clients" element={<PrivateLayout><Clients role={session?.role || 'Dono'} /></PrivateLayout>} />
         <Route path="/clients/:id" element={<PrivateLayout><ClientDetails role={session?.role || 'Dono'} /></PrivateLayout>} />
         <Route path="/vehicles" element={<PrivateLayout><Vehicles /></PrivateLayout>} />
         <Route path="/vehicles/:id" element={<PrivateLayout><VehicleDetails /></PrivateLayout>} />
-        <Route path="/employees" element={<PrivateLayout><Employees /></PrivateLayout>} />
+        <Route path="/employees" element={<PrivateLayout>{session?.role === 'Dono' ? <Employees session={session} /> : <Navigate to="/dashboard" replace />}</PrivateLayout>} />
         <Route path="/ai-marketing" element={<PrivateLayout><AiAssistant /></PrivateLayout>} />
         <Route path="/project-dossier" element={<PrivateLayout><ProjectDocument session={session} syncData={syncData} /></PrivateLayout>} />
         <Route path="/terminal" element={<PrivateLayout><MechanicTerminal session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/budgets" element={<PrivateLayout><Budgets session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/checklists" element={<PrivateLayout><ChecklistsView session={session!} syncData={syncData} /></PrivateLayout>} />
-        <Route path="/suppliers" element={<PrivateLayout><Suppliers session={session!} syncData={syncData} /></PrivateLayout>} />
+        <Route path="/suppliers" element={<PrivateLayout>{session && ['Dono', 'RecepÃ§Ã£o'].includes(session.role) ? <Suppliers session={session} /> : <Navigate to="/dashboard" replace />}</PrivateLayout>} />
         <Route path="/reports" element={<PrivateLayout><Reports session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/marketing" element={<PrivateLayout><Marketing session={session!} syncData={syncData} /></PrivateLayout>} />
         <Route path="/reviews" element={<PrivateLayout><Reviews session={session!} syncData={syncData} /></PrivateLayout>} />
