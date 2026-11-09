@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ServiceOrder, PaymentStatus } from '../types';
 import { Wrench } from 'lucide-react';
@@ -7,21 +6,42 @@ interface InvoiceProps {
   os: ServiceOrder;
 }
 
+const safeMoney = (val: any): string => {
+  const n = typeof val === 'number' ? val : parseFloat(String(val || 0).replace(',', '.')) || 0;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const safeDate = (val: any): string => {
+  try {
+    const d = val ? new Date(val) : new Date();
+    return isNaN(d.getTime()) ? new Date().toLocaleDateString('pt-BR') : d.toLocaleDateString('pt-BR');
+  } catch {
+    return new Date().toLocaleDateString('pt-BR');
+  }
+};
+
 const Invoice: React.FC<InvoiceProps> = ({ os }) => {
-  // Ensure all items with description or price are displayed
-  const validItems = (os.items || [])
-    .filter(item => item && ((item.description && item.description.trim() !== '') || (item.unitPrice || 0) > 0 || (item.quantity || 0) > 0))
+  if (!os) return null;
+
+  // Ensure all items with description or price are displayed cleanly
+  const rawItems = Array.isArray(os.items) ? os.items : [];
+  const validItems = rawItems
+    .filter(item => item && (String(item.description || '').trim() !== '' || Number(item.unitPrice || 0) > 0 || Number(item.quantity || 0) > 0))
     .map((item, idx) => ({
       ...item,
-      description: (item.description && item.description.trim() !== '') 
-        ? item.description 
-        : `SERVIÇO MECÂNICO #${idx + 1}`
+      description: String(item.description || '').trim() || `SERVIÇO MECÂNICO #${idx + 1}`,
+      quantity: Number(item.quantity) || 1,
+      unitPrice: Number(item.unitPrice) || 0
     }));
-  const totalItems = validItems.length + (os.laborValue > 0 ? 1 : 0);
+
+  const laborValue = Number(os.laborValue) || 0;
+  const totalItems = validItems.length + (laborValue > 0 ? 1 : 0);
   
   let densityClass = '';
   if (totalItems > 18) densityClass = 'micro-mode';
   else if (totalItems > 10) densityClass = 'compact-mode';
+
+  const computedTotal = Number(os.totalValue) || (validItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0) + laborValue);
 
   return (
     <div className={`kaen-invoice-render ${densityClass}`}>
@@ -41,8 +61,8 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
         </div>
         <div className="inv-os-info">
           <h2>Ordem de Serviço</h2>
-          <p className="os-number">{os.osNumber}</p>
-          <p className="os-date">{new Date(os.createdAt).toLocaleDateString('pt-BR')}</p>
+          <p className="os-number">{String(os.osNumber || '000000')}</p>
+          <p className="os-date">{safeDate(os.createdAt)}</p>
         </div>
       </div>
 
@@ -50,23 +70,23 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
       <div className="inv-client-card">
         <div className="inv-info-group">
           <label>Cliente</label>
-          <span>{os.clientName}</span>
+          <span>{String(os.clientName || 'CLIENTE BALCÃO')}</span>
         </div>
         <div className="inv-info-group">
           <label>Telefone</label>
-          <span>{os.clientPhone || 'Não informado'}</span>
+          <span>{String(os.clientPhone || '(13) 99689-2958')}</span>
         </div>
         <div className="inv-info-group">
           <label>Veículo</label>
-          <span>{os.vehicleModel}</span>
+          <span>{String(os.vehicleModel || 'VEÍCULO DIVERSOS')}</span>
         </div>
         <div className="inv-info-group">
           <label>Placa</label>
-          <span>{os.vehiclePlate}</span>
+          <span>{String(os.vehiclePlate || 'SEM PLACA')}</span>
         </div>
         <div className="inv-info-group">
           <label>Kilometragem</label>
-          <span>{os.vehicleKm || '0'} KM</span>
+          <span>{String(os.vehicleKm || '0')} KM</span>
         </div>
         <div className="inv-info-group">
           <label>Garantia</label>
@@ -90,16 +110,16 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
               <tr key={item.id || idx}>
                 <td className="col-desc">{item.description}</td>
                 <td className="col-qtd">{item.quantity}</td>
-                <td className="col-unit">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td className="col-total">R$ {(item.quantity * item.unitPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td className="col-unit">R$ {safeMoney(item.unitPrice)}</td>
+                <td className="col-total">R$ {safeMoney(item.quantity * item.unitPrice)}</td>
               </tr>
             ))}
-            {os.laborValue > 0 && (
+            {laborValue > 0 && (
               <tr>
-                <td className="col-desc">SMR - Serviço de Manutenção Relatada</td>
+                <td className="col-desc">SMR - Serviço de Manutenção Relatada (Mão de Obra)</td>
                 <td className="col-qtd">1</td>
-                <td className="col-unit">R$ {os.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td className="col-total">R$ {os.laborValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td className="col-unit">R$ {safeMoney(laborValue)}</td>
+                <td className="col-total">R$ {safeMoney(laborValue)}</td>
               </tr>
             )}
           </tbody>
@@ -107,7 +127,7 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
       </div>
 
       {/* Vistoria Fotográfica: Fotos Antes & Depois anexadas à Nota */}
-      {os.proofPhotos && os.proofPhotos.length > 0 && (
+      {Array.isArray(os.proofPhotos) && os.proofPhotos.length > 0 && (
         <div className="mb-6 p-4 rounded-xl border border-zinc-200 bg-zinc-50/70">
           <div className="flex justify-between items-center mb-3">
             <span className="text-[9px] font-black uppercase tracking-wider text-zinc-700">
@@ -120,12 +140,12 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
           <div className="grid grid-cols-4 gap-2">
             {os.proofPhotos.slice(0, 4).map((photo, i) => (
               <div key={photo.id || i} className="border border-zinc-300 rounded-lg overflow-hidden bg-white">
-                <img src={photo.url} alt={photo.label} className="w-full h-16 object-cover" referrerPolicy="no-referrer" />
+                <img src={photo.url} alt={photo.label || 'Foto'} className="w-full h-16 object-cover" referrerPolicy="no-referrer" />
                 <div className="p-1 bg-zinc-100 text-center">
                   <span className={`text-[7px] font-black uppercase px-1 py-0.2 rounded inline-block ${photo.type === 'AFTER' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                     {photo.type === 'AFTER' ? 'DEPOIS' : 'ANTES'}
                   </span>
-                  <p className="text-[7px] text-zinc-600 truncate mt-0.5">{photo.label}</p>
+                  <p className="text-[7px] text-zinc-600 truncate mt-0.5">{photo.label || 'Vistoria'}</p>
                 </div>
               </div>
             ))}
@@ -145,7 +165,7 @@ const Invoice: React.FC<InvoiceProps> = ({ os }) => {
         </div>
         <div className="inv-total-box">
           <label>Valor Total do Investimento</label>
-          <p className="total-value">R$ {os.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="total-value">R$ {safeMoney(computedTotal)}</p>
         </div>
       </div>
 

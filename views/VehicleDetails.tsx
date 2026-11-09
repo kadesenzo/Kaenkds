@@ -301,7 +301,7 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
                       <p className="text-sm text-zinc-200 font-medium leading-relaxed">{os.problem}</p>
                     </div>
 
-                    {os.items.length > 0 && (
+                    {Array.isArray(os?.items) && os.items.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-4">
                         {os.items.map((item, idx) => (
                           <div key={idx} className="bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-zinc-700 flex items-center gap-2">
@@ -316,11 +316,11 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
                       <div className="flex gap-4">
                          <div className="flex flex-col">
                            <span className="text-[8px] font-black text-zinc-600 uppercase">Mão de Obra</span>
-                           <span className="text-xs font-bold text-zinc-400">R$ {os.laborValue.toLocaleString('pt-BR')}</span>
+                           <span className="text-xs font-bold text-zinc-400">R$ {Number(os.laborValue || 0).toLocaleString('pt-BR')}</span>
                          </div>
                          <div className="flex flex-col">
                            <span className="text-[8px] font-black text-zinc-600 uppercase">Peças Aplicadas</span>
-                           <span className="text-xs font-bold text-zinc-400">R$ {(os.items.reduce((a,c)=>a+(c.quantity*c.unitPrice),0)).toLocaleString('pt-BR')}</span>
+                           <span className="text-xs font-bold text-zinc-400">R$ {((Array.isArray(os?.items) ? os.items : []).reduce((a,c)=>a+((Number(c?.quantity) || 1)*(Number(c?.unitPrice) || 0)),0)).toLocaleString('pt-BR')}</span>
                          </div>
                       </div>
                       <button 

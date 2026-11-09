@@ -100,22 +100,14 @@ const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center space-x-3 sm:space-x-4 md:space-x-6 w-full md:w-auto justify-between sm:justify-end">
-        {/* Pulsing online people indicator */}
-        {onlineUsers.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950/70 border border-white/5 rounded-full text-zinc-400 max-w-[180px] sm:max-w-none">
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0"></span>
-            <span className="text-[7.5px] font-black uppercase tracking-wider leading-none truncate" title={onlineUsers.map(s => s.realUsername).join(", ")}>
-              {onlineUsers.length} ON: {onlineUsers.map(s => s.realUsername.split(" ")[0]).slice(0, 2).join(", ")}{onlineUsers.length > 2 ? "..." : ""}
-            </span>
-          </div>
-        )}
+
 
         <button 
           onClick={() => {
             setShowDbModal(true);
             window.dispatchEvent(new CustomEvent('kaen_force_cloud_backup'));
           }}
-          className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 bg-zinc-900/60 hover:bg-zinc-800 rounded-full border border-white/5 hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95"
+          className="hidden md:flex items-center gap-2 px-3 sm:px-3.5 py-1.5 bg-zinc-900/60 hover:bg-zinc-800 rounded-full border border-white/5 hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95"
           title="Bancos de Dados: Firestore & Supabase Failover. Clique para gerenciar e passar dados ao original."
         >
           {syncStatus === SyncStatus.SYNCING ? (

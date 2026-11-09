@@ -301,7 +301,7 @@
             width: 100%; 
             display: flex; 
             justify-content: center; 
-            padding: 15px 0; 
+            padding: 12px 0; 
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
@@ -309,22 +309,31 @@
             width: 794px; 
             transform-origin: top center; 
             flex-shrink: 0; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+            border-radius: 12px; 
+            box-shadow: 0 20px 70px rgba(0,0,0,0.6);
             background: #fff;
         }
 
         @media (max-width: 850px) { 
+            .invoice-preview-wrapper {
+                justify-content: flex-start;
+                padding-bottom: 16px;
+            }
             .invoice-container-scaled { 
-                transform: scale(0.52); 
-                margin-bottom: -520px; 
+                transform: scale(0.62); 
+                transform-origin: top left;
+                margin-bottom: -400px;
             } 
         }
         @media (max-width: 480px) { 
+            .invoice-preview-wrapper {
+                justify-content: flex-start;
+                padding-bottom: 16px;
+            }
             .invoice-container-scaled { 
-                transform: scale(0.42); 
-                margin-bottom: -620px; 
+                transform: scale(0.46); 
+                transform-origin: top left;
+                margin-bottom: -560px;
             } 
         }
 

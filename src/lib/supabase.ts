@@ -8,6 +8,10 @@ export interface SupabaseConfig {
   isConfigured: boolean;
 }
 
+// Built-in Default Supabase Configuration (Can be placed directly in code so Git updates never lose it)
+export const DEFAULT_SUPABASE_URL = '';
+export const DEFAULT_SUPABASE_ANON_KEY = '';
+
 const STORAGE_KEY_URL = 'kaen_supabase_url';
 const STORAGE_KEY_KEY = 'kaen_supabase_anon_key';
 
@@ -16,12 +20,18 @@ let lastUrl = '';
 let lastKey = '';
 
 export function getSupabaseConfig(): SupabaseConfig {
-  if (typeof window === 'undefined') {
-    return { url: '', anonKey: '', isConfigured: false };
+  const envUrl = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL ? String((import.meta as any).env.VITE_SUPABASE_URL) : '').trim();
+  const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ? String((import.meta as any).env.VITE_SUPABASE_ANON_KEY) : '').trim();
+
+  let storedUrl = '';
+  let storedKey = '';
+  if (typeof window !== 'undefined') {
+    storedUrl = (localStorage.getItem(STORAGE_KEY_URL) || '').trim();
+    storedKey = (localStorage.getItem(STORAGE_KEY_KEY) || '').trim();
   }
 
-  const url = (localStorage.getItem(STORAGE_KEY_URL) || '').trim();
-  const anonKey = (localStorage.getItem(STORAGE_KEY_KEY) || '').trim();
+  const url = storedUrl || envUrl || DEFAULT_SUPABASE_URL;
+  const anonKey = storedKey || envKey || DEFAULT_SUPABASE_ANON_KEY;
 
   return {
     url,

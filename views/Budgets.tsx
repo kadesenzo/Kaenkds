@@ -95,8 +95,9 @@ export const Budgets: React.FC<BudgetsProps> = ({ session, syncData }) => {
 
   const handleSendWhatsApp = (os: ServiceOrder) => {
     const phone = (os.clientPhone || '').replace(/\D/g, '');
-    const peçasList = os.items.filter(i => i.type === 'PART');
-    const serviçosList = os.items.filter(i => i.type === 'SERVICE');
+    const safeItems = Array.isArray(os?.items) ? os.items : [];
+    const peçasList = safeItems.filter(i => i && i.type === 'PART');
+    const serviçosList = safeItems.filter(i => i && i.type === 'SERVICE');
 
     let text = `Olá, *${os.clientName}*! 👋\n\n`;
     text += `A *Auto Mecânica KAEN* realizou a avaliação técnica completa do seu *${os.vehicleModel}* (Placa: *${os.vehiclePlate}*).\n\n`;
@@ -374,7 +375,7 @@ export const Budgets: React.FC<BudgetsProps> = ({ session, syncData }) => {
             <div className="space-y-2">
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Itens e Serviços Orçados</span>
               <div className="space-y-1.5">
-                {selectedBudget.items.map((item, index) => (
+                {(Array.isArray(selectedBudget?.items) ? selectedBudget.items : []).map((item, index) => (
                   <div key={index} className="p-3 bg-zinc-900/40 rounded-xl flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <span className={`p-1 rounded text-[8px] font-black ${item.type === 'PART' ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'}`}>

@@ -25,6 +25,12 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [showPatioModal, setShowPatioModal] = useState(false);
   const [selectedAntesDepoisOs, setSelectedAntesDepoisOs] = useState<ServiceOrder | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Load state and listen to local updates in real-time
   useEffect(() => {
@@ -85,7 +91,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     // Check administrative / user permission
     const permissions = JSON.parse(localStorage.getItem(`kaenpro_${session?.username}_permissions`) || '{"canEditPrices":true,"canDelete":true,"canCloseOS":true}');
     if (!permissions.canEditPrices) {
-      alert("ACESSO NEGADO: Você não tem permissão para editar preços ou orçamentos. Contate o Administrador.");
+      showToast("ACESSO NEGADO: Você não tem permissão para editar preços ou orçamentos. Contate o Administrador.", "error");
       return;
     }
     setEditingOrder({ ...order });
@@ -110,13 +116,13 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
     if (selectedOrder?.id === updatedFinal.id) {
       setSelectedOrder(updatedFinal);
     }
-    alert("Orçamento atualizado com sucesso!");
+    showToast("Orçamento atualizado com sucesso!", "success");
   };
 
   const handleFinalizeService = async (order: ServiceOrder) => {
     const permissions = JSON.parse(localStorage.getItem(`kaenpro_${session?.username}_permissions`) || '{"canEditPrices":true,"canDelete":true,"canCloseOS":true}');
     if (!permissions.canCloseOS) {
-      alert("ACESSO NEGADO: Você não tem permissão para fechar Ordens de Serviço. Contate o Administrador.");
+      showToast("ACESSO NEGADO: Você não tem permissão para fechar Ordens de Serviço. Contate o Administrador.", "error");
       return;
     }
 
@@ -171,7 +177,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
       console.error("Failed to sync invoice to admin monitoring logs", err);
     }
 
-    alert("ATENDIMENTO FINALIZADO COM SUCESSO! Nota fiscal emitida e lançada no fluxo de caixa.");
+    showToast("ATENDIMENTO FINALIZADO COM SUCESSO! Nota fiscal emitida e lançada no fluxo de caixa.", "success");
     setSelectedOrder(null);
   };
 
@@ -206,6 +212,19 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
   return (
     <div className="space-y-12 animate-in fade-in duration-500 p-6 md:p-14 pb-48 w-full max-w-[1400px]">
       
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`p-4 rounded-2xl flex items-center justify-between border shadow-2xl animate-in slide-in-from-top-4 duration-300 ${toast.type === 'error' ? 'bg-red-500/20 border-red-500/40 text-red-200' : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'}`}>
+          <div className="flex items-center gap-3">
+            {toast.type === 'error' ? <AlertTriangle size={20} className="text-red-400" /> : <CheckCircle2 size={20} className="text-emerald-400" />}
+            <span className="text-xs font-black uppercase tracking-wider">{toast.message}</span>
+          </div>
+          <button onClick={() => setToast(null)} className="text-white/60 hover:text-white p-1">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Reception Panel Intro Header */}
       <div className="w-full glass-card p-12 rounded-[4rem] border border-white/5 relative overflow-hidden group shadow-2xl">
          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"></div>
@@ -392,7 +411,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                 <div className="space-y-3">
                   <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest block">ITENS DO ORÇAMENTO</span>
                   <div className="max-h-40 overflow-y-auto pr-1 space-y-2 no-scrollbar">
-                    {selectedOrder.items.map((item, index) => (
+                    {(Array.isArray(selectedOrder?.items) ? selectedOrder.items : []).map((item, index) => (
                       <div key={item.id} className="flex justify-between items-center p-3.5 bg-zinc-900/40 rounded-xl border border-white/5 text-[11px]">
                         <span className="font-bold text-zinc-300 uppercase max-w-[200px] truncate">{item.quantity}x {item.description}</span>
                         <span className="font-mono text-zinc-400">R$ {(item.quantity * item.unitPrice).toLocaleString('pt-BR')}</span>
@@ -481,7 +500,7 @@ const ReceptionTerminal: React.FC<ReceptionTerminalProps> = ({ session, syncData
                 />
               </div>
 
-              {editingOrder.items.map((item, index) => (
+              {(Array.isArray(editingOrder?.items) ? editingOrder.items : []).map((item, index) => (
                 <div key={item.id} className="p-4 bg-zinc-950 rounded-xl border border-white/5 space-y-4">
                   <p className="text-[9px] font-black text-[#FF2D55] uppercase tracking-widest italic">{item.type} - {item.description || "Sem Descrição"}</p>
                   <div className="grid grid-cols-2 gap-4">

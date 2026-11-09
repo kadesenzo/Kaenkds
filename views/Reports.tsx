@@ -70,8 +70,10 @@ export const Reports: React.FC<ReportsProps> = ({ session }) => {
   // Services ranking
   const serviceMap: Record<string, number> = {};
   filteredOrders.forEach(os => {
-    os.items?.forEach(item => {
-      serviceMap[item.description] = (serviceMap[item.description] || 0) + item.quantity;
+    (Array.isArray(os?.items) ? os.items : []).forEach(item => {
+      if (item && item.description) {
+        serviceMap[item.description] = (serviceMap[item.description] || 0) + (Number(item.quantity) || 1);
+      }
     });
   });
 

@@ -72,19 +72,22 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
       link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
     } catch (err) {
-      console.error(err);
-      alert("Houve um erro ao gerar a imagem da nota.");
+      console.warn("Aviso ao gerar imagem da nota:", err);
     } finally {
       target.innerHTML = '';
     }
   };
 
   const filtered = orders.filter(o => {
-    const matchesSearch = 
-      o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      o.vehiclePlate.includes(searchTerm.toUpperCase()) || 
-      o.osNumber.includes(searchTerm) ||
-      o.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!o) return false;
+    const sTerm = (searchTerm || '').trim().toLowerCase();
+    const sUpper = (searchTerm || '').trim().toUpperCase();
+
+    const matchesSearch = !sTerm ||
+      String(o.clientName || '').toLowerCase().includes(sTerm) || 
+      String(o.vehiclePlate || '').toUpperCase().includes(sUpper) || 
+      String(o.osNumber || '').includes(sTerm) ||
+      String(o.vehicleModel || '').toLowerCase().includes(sTerm);
 
     if (!matchesSearch) return false;
 

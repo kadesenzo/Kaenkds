@@ -78,16 +78,10 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     setIsSaving(true);
     try {
       // 1. Automatically purge any blank/empty item boxes
-      const cleanItems = items.filter(i => i.description && i.description.trim() !== '');
+      const cleanItems = items.filter(i => String(i?.description || '').trim() !== '');
 
-      if (cleanItems.length === 0 && (!labor || parseFloat(labor) === 0)) {
-        alert("Atenção: Adicione a descrição de ao menos um serviço/peça ou informe o valor de mão de obra.");
-        setIsSaving(false);
-        return;
-      }
-
-      const laborNum = parseFloat(labor) || 0;
-      const computedItemsTotal = cleanItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
+      const laborNum = parseFloat(String(labor || '0').replace(',', '.')) || 0;
+      const computedItemsTotal = cleanItems.reduce((acc, curr) => acc + ((Number(curr.quantity) || 1) * (Number(curr.unitPrice) || 0)), 0);
       const computedTotal = computedItemsTotal + laborNum;
 
       const tenant = session?.username || 'rafael';
@@ -95,15 +89,21 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       // 2. Build updated ServiceOrder
       const updatedOrder: ServiceOrder = {
         ...order,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        vehiclePlate: vehiclePlate.trim().toUpperCase(),
-        vehicleModel: vehicleModel.trim().toUpperCase(),
-        vehicleKm: vehicleKm.trim(),
+        clientName: String(clientName || '').trim().toUpperCase() || 'CLIENTE BALCÃO',
+        clientPhone: String(clientPhone || '').trim() || '(13) 99689-2958',
+        vehiclePlate: String(vehiclePlate || '').trim().toUpperCase() || 'SEM PLACA',
+        vehicleModel: String(vehicleModel || '').trim().toUpperCase() || 'VEÍCULO DIVERSOS',
+        vehicleKm: String(vehicleKm || '0').trim(),
         status,
         paymentStatus,
         laborValue: laborNum,
-        items: cleanItems,
+        items: cleanItems.length > 0 ? cleanItems : [{
+          id: Math.random().toString(36).substr(2, 9),
+          description: 'MANUTENÇÃO GERAL',
+          quantity: 1,
+          unitPrice: computedTotal,
+          type: 'SERVICE'
+        }],
         totalValue: computedTotal,
         updatedAt: new Date().toISOString()
       };

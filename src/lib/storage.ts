@@ -1,6 +1,7 @@
 import { Client, Vehicle, ServiceOrder, OSItem, Part, Appointment, UserSession } from '../../types';
 import { saveWorkshopFieldToCloud, fetchAllWorkshopDataFromCloud } from './firebase';
 import { saveToSupabase, isSupabaseConfigured } from './supabase';
+import { DEFAULT_CLIENTS, DEFAULT_VEHICLES } from '../data/defaultData';
 
 /**
  * Universal Workshop Storage & Cloud Persistence Engine
@@ -56,13 +57,22 @@ export function getWorkshopData<T>(key: string, username?: string, fallback: T =
   try { if (rawLegacy) valLegacy = JSON.parse(rawLegacy); } catch (e) {}
 
   // If array (clients, vehicles, orders, etc.), merge all unique by ID
-  if (Array.isArray(valMaster) || Array.isArray(valTenant) || Array.isArray(valLegacy)) {
+  if (Array.isArray(valMaster) || Array.isArray(valTenant) || Array.isArray(valLegacy) || key === 'clients' || key === 'vehicles') {
     const listMaster = Array.isArray(valMaster) ? valMaster : [];
     const listTenant = Array.isArray(valTenant) ? valTenant : [];
     const listLegacy = Array.isArray(valLegacy) ? valLegacy : [];
 
     let combined = mergeUniqueById(listLegacy, listMaster);
     combined = mergeUniqueById(combined, listTenant);
+
+    // If clients or vehicles are currently empty, initialize with rich real default database
+    if (combined.length === 0) {
+      if (key === 'clients') {
+        combined = [...DEFAULT_CLIENTS];
+      } else if (key === 'vehicles') {
+        combined = [...DEFAULT_VEHICLES];
+      }
+    }
 
     if (combined.length > 0) {
       // Re-align all namespaces so they all have the full dataset

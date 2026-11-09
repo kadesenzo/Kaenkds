@@ -51,11 +51,15 @@ const Vehicles: React.FC<{ session?: UserSession; syncData?: (key: string, data:
     return orders.filter(o => o.vehiclePlate === plate).length;
   };
 
-  const filtered = vehicles.filter(v => 
-    v.plate.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    v.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getOwner(v.clientId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = vehicles.filter(v => {
+    if (!v) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    if (!term) return true;
+    const ownerName = getOwner(v.clientId)?.name;
+    return String(v.plate || '').toLowerCase().includes(term) || 
+      String(v.model || '').toLowerCase().includes(term) ||
+      String(ownerName || '').toLowerCase().includes(term);
+  });
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700 max-w-[1200px] p-6 md:p-8 flex flex-col items-center w-full mx-auto">

@@ -61,10 +61,13 @@ const Employees: React.FC<EmployeesProps> = ({ session, syncData }) => {
     }
   };
 
-  const filtered = staff.filter(e => 
-    e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    e.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = staff.filter(e => {
+    if (!e) return false;
+    const term = (searchTerm || '').trim().toLowerCase();
+    return !term ||
+      String(e.name || '').toLowerCase().includes(term) || 
+      String(e.role || '').toLowerCase().includes(term);
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

@@ -144,8 +144,10 @@ const Financial: React.FC<{ session?: UserSession; syncData?: (key: string, data
     // Serviço Mais Vendido
     const serviceCounts: Record<string, number> = {};
     orders.forEach(o => {
-      (o.items || []).forEach(item => {
-        serviceCounts[item.description] = (serviceCounts[item.description] || 0) + (item.quantity || 1);
+      (Array.isArray(o?.items) ? o.items : []).forEach(item => {
+        if (item && item.description) {
+          serviceCounts[item.description] = (serviceCounts[item.description] || 0) + (Number(item.quantity) || 1);
+        }
       });
     });
     let topService = 'Revisão & Diagnóstico';

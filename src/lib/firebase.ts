@@ -38,48 +38,18 @@ export const db = (() => {
   }
 })();
 
-// Active circuit breaker initialized to protect against daily write quota exhaustion
-let quotaExhaustedInMemory = true;
+// Active circuit breaker for write operations
+let quotaExhaustedInMemory = false;
 
 export function isQuotaExhausted(): boolean {
-  if (quotaExhaustedInMemory) return true;
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('kaen_firestore_quota_exhausted') || sessionStorage.getItem('kaen_firestore_quota_exhausted');
-    if (stored) {
-      const timestamp = parseInt(stored, 10);
-      // Reset check after 18 hours
-      if (Date.now() - timestamp < 18 * 60 * 60 * 1000) {
-        quotaExhaustedInMemory = true;
-        return true;
-      } else {
-        localStorage.removeItem('kaen_firestore_quota_exhausted');
-        sessionStorage.removeItem('kaen_firestore_quota_exhausted');
-      }
-    }
-  }
-  return false;
+  return quotaExhaustedInMemory;
 }
 
 export function markQuotaExhausted() {
   quotaExhaustedInMemory = true;
   if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
-      sessionStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
-      window.dispatchEvent(new CustomEvent('kaen_quota_status_changed', { detail: { exhausted: true } }));
-      // Disable network on db to prevent Firestore SDK from retrying writes and logging backoff errors
-      disableNetwork(db).catch(() => {});
-    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('kaen_quota_status_changed', { detail: { exhausted: true } }));
   }
-}
-
-// On startup in browser, if quota is marked exhausted, disable network gracefully
-if (typeof window !== 'undefined') {
-  try {
-    localStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
-    sessionStorage.setItem('kaen_firestore_quota_exhausted', Date.now().toString());
-    disableNetwork(db).catch(() => {});
-  } catch (e) {}
 }
 
 export const WORKSHOP_DOC_ID = 'kaen_shared_database';
@@ -186,7 +156,11 @@ export async function saveWorkshopFieldToCloud(key: string, value: any): Promise
       console.warn("⚠️ [Firestore Circuit Breaker] Cota diária gratuita do Firestore atingida. Gravação direcionada com segurança para o banco de dados local e backend Express.");
       return;
     }
-    handleFirestoreError(error, OperationType.WRITE, pathForWrite);
+    try {
+      handleFirestoreError(error, OperationType.WRITE, pathForWrite);
+    } catch (e) {
+      console.warn("Firestore write error captured:", e);
+    }
   }
 }
 
@@ -194,8 +168,6 @@ export async function saveWorkshopFieldToCloud(key: string, value: any): Promise
  * Fetch all workshop data from Firestore with timeout protection
  */
 export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, any> | null> {
-  if (isQuotaExhausted()) return null;
-
   const pathForGet = `workshops/${WORKSHOP_DOC_ID}`;
   try {
     const docRef = doc(db, 'workshops', WORKSHOP_DOC_ID);
@@ -209,7 +181,11 @@ export async function fetchAllWorkshopDataFromCloud(): Promise<Record<string, an
     }
     return Object.keys(result).length > 0 ? result : null;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, pathForGet);
+    try {
+      handleFirestoreError(error, OperationType.GET, pathForGet);
+    } catch (e) {
+      console.warn("Firestore fetch error captured:", e);
+    }
     return null;
   }
 }
