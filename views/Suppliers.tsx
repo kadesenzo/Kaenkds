@@ -174,16 +174,16 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
   };
 
   const filtered = suppliers.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.products.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.contactName.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.products || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.contactName || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="w-full max-w-[1200px] space-y-6 pb-20 animate-in fade-in duration-300">
+    <div className="w-full max-w-[1200px] min-w-0 px-3 sm:px-6 space-y-6 pb-24 animate-in fade-in duration-300">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 bg-zinc-950/80 border border-white/5 rounded-3xl backdrop-blur-xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 sm:p-6 bg-zinc-950/80 border border-white/5 rounded-3xl backdrop-blur-xl">
         <div>
           <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
             <Truck size={16} />
@@ -202,7 +202,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
             resetForm();
             setShowModal(true);
           }}
-          className="px-5 py-3.5 bg-[#FF2D55] hover:bg-[#ff1744] text-white rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-[#FF2D55]/30 transition-all duration-200 active:scale-95"
+          className="w-full sm:w-auto px-5 py-3.5 bg-[#FF2D55] hover:bg-[#ff1744] text-white rounded-2xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#FF2D55]/30 transition-all duration-200 active:scale-95 shrink-0"
         >
           <Plus size={16} />
           <span>Cadastrar Fornecedor</span>
@@ -226,18 +226,18 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
         {filtered.map(s => (
           <div
             key={s.id}
-            className="p-5 bg-zinc-950/70 border border-white/5 hover:border-white/10 rounded-3xl space-y-4 transition-all duration-300 relative group"
+            className="p-5 bg-zinc-950/70 border border-white/5 hover:border-white/10 rounded-3xl space-y-4 transition-all duration-300 relative group min-w-0"
           >
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-md">
+              <div className="min-w-0 flex-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-md inline-block">
                   {s.category}
                 </span>
-                <h3 className="text-base font-black uppercase text-white tracking-tight mt-1">{s.name}</h3>
-                <p className="text-xs text-zinc-400">Contato: <strong className="text-zinc-200">{s.contactName}</strong></p>
+                <h3 className="text-base font-black uppercase text-white tracking-tight mt-1 break-words">{s.name}</h3>
+                <p className="text-xs text-zinc-400 truncate">Contato: <strong className="text-zinc-200">{s.contactName}</strong></p>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => handleEdit(s)}
                   className="p-2 text-zinc-500 hover:text-white rounded-lg hover:bg-white/5"
@@ -255,17 +255,17 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
               </div>
             </div>
 
-            <div className="p-3 bg-black/60 rounded-2xl space-y-1.5 text-xs text-zinc-400">
-              <p><strong className="text-zinc-300">Produtos / Especialidades:</strong> {s.products}</p>
-              <p><strong className="text-zinc-300">Prazos & Pagamento:</strong> {s.paymentTerms}</p>
+            <div className="p-3 bg-black/60 rounded-2xl space-y-1.5 text-xs text-zinc-400 break-words">
+              <p><strong className="text-zinc-300">Produtos / Especialidades:</strong> {s.products || 'Não informado'}</p>
+              <p><strong className="text-zinc-300">Prazos & Pagamento:</strong> {s.paymentTerms || 'Não informado'}</p>
               {s.notes && <p className="text-[11px] text-zinc-500 italic mt-1">{s.notes}</p>}
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-white/5">
-              <span className="text-xs font-mono text-zinc-400">{s.phone}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5">
+              <span className="text-xs font-mono text-zinc-400 truncate">{s.phone}</span>
               <button
                 onClick={() => openWhatsApp(s.phone, s.name)}
-                className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+                className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all duration-200 active:scale-95 shrink-0"
               >
                 <MessageCircle size={14} />
                 <span>Pedir Cotação</span>
@@ -273,12 +273,18 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
             </div>
           </div>
         ))}
+        {filtered.length === 0 && (
+          <div className="col-span-full p-12 text-center bg-zinc-950/40 border border-dashed border-white/10 rounded-3xl">
+            <Truck size={32} className="mx-auto text-zinc-600 mb-3" />
+            <p className="text-sm font-bold text-zinc-400">Nenhum fornecedor encontrado</p>
+          </div>
+        )}
       </div>
 
       {/* Modal Cadastrar / Editar */}
       {showModal && (
-        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-white/10 rounded-[2.5rem] w-full max-w-lg p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-zinc-950 border border-white/10 rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-lg p-5 sm:p-8 space-y-5 shadow-2xl relative my-auto max-h-[92dvh] overflow-y-auto">
             <button
               onClick={() => setShowModal(false)}
               className="absolute top-6 right-6 p-2 text-zinc-500 hover:text-white rounded-xl"
@@ -308,7 +314,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">
                     Nome do Vendedor / Contato
@@ -337,7 +343,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ session, syncData }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 block mb-1">
                     Categoria Principal

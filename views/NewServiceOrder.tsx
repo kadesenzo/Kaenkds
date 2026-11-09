@@ -34,6 +34,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
   
   const [items, setItems] = useState<OSItem[]>([]);
   const [labor, setLabor] = useState<string>('0');
+  const [noteKm, setNoteKm] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(PaymentStatus.PENDENTE);
   
   const [finalOs, setFinalOs] = useState<ServiceOrder | null>(null);
@@ -85,6 +86,12 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         setParts(updatedParts);
       }
 
+      const parsedNoteKm = parseInt(noteKm.replace(/\D/g, ''), 10);
+      const hasValidNoteKm = noteKm.trim() !== '' && !isNaN(parsedNoteKm) && parsedNoteKm >= 0;
+      const finalKmStr = hasValidNoteKm
+        ? parsedNoteKm.toString()
+        : (selectedVehicle.km !== undefined && selectedVehicle.km !== null ? selectedVehicle.km.toString() : '0');
+
       const osNumber = `${Math.floor(100000 + Math.random() * 899999)}`;
       const os: ServiceOrder = {
         id: Math.random().toString(36).substr(2, 9),
@@ -95,7 +102,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         vehicleId: selectedVehicle.id,
         vehiclePlate: selectedVehicle.plate,
         vehicleModel: selectedVehicle.model,
-        vehicleKm: selectedVehicle.km.toString(),
+        vehicleKm: finalKmStr,
         problem: 'MANUTENÇÃO TÉCNICA KAEN',
         items,
         laborValue: parseFloat(labor) || 0,
@@ -106,6 +113,17 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+
+      // Atualiza o KM atual do cadastro do veículo quando aplicável (novo KM maior que o anterior ou cadastro zerado)
+      if (hasValidNoteKm && parsedNoteKm > 0 && parsedNoteKm !== selectedVehicle.km && (parsedNoteKm >= (selectedVehicle.km || 0) || !selectedVehicle.km)) {
+        const updatedVehicles = vehicles.map(v =>
+          v.id === selectedVehicle.id ? { ...v, km: parsedNoteKm } : v
+        );
+        setVehicles(updatedVehicles);
+        setSelectedVehicle({ ...selectedVehicle, km: parsedNoteKm });
+        await syncData('vehicles', updatedVehicles);
+      }
+
       const currentOrders = JSON.parse(localStorage.getItem(`kaenpro_${session.username}_orders`) || '[]');
       await syncData('orders', [...currentOrders, os]);
       setFinalOs(os);
@@ -150,6 +168,7 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
     setVehicles(updated);
     await syncData('vehicles', updated);
     setSelectedVehicle(newV);
+    setNoteKm(newV.km ? newV.km.toString() : '');
     setShowQuickVehicle(false);
     setStep('ITENS');
   };
@@ -302,12 +321,14 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
             {!showQuickVehicle ? (
               <div className="grid grid-cols-1 gap-6 w-full">
                 {vehicles.filter(v => v.clientId === selectedClient.id).map(v => (
-                  <button key={v.id} onClick={() => { setSelectedVehicle(v); setStep('ITENS'); }} className="p-10 glass-card border-white/5 rounded-ios flex items-center justify-between hover:border-[#FF2D55]/50 transition-all group shadow-2xl">
+                  <button key={v.id} onClick={() => { setSelectedVehicle(v); setNoteKm(v.km !== undefined && v.km !== null ? v.km.toString() : ''); setStep('ITENS'); }} className="p-6 sm:p-10 glass-card border-white/5 rounded-ios flex items-center justify-between hover:border-[#FF2D55]/50 transition-all group shadow-2xl">
                     <div className="text-left">
-                      <p className="text-3xl font-black italic uppercase text-white tracking-widest leading-none">{v.plate}</p>
-                      <p className="text-[11px] font-bold text-zinc-600 uppercase tracking-[0.4em] mt-3">{v.model}</p>
+                      <p className="text-2xl sm:text-3xl font-black italic uppercase text-white tracking-widest leading-none">{v.plate}</p>
+                      <p className="text-[11px] font-bold text-zinc-600 uppercase tracking-[0.4em] mt-3">
+                        {v.model} • <span className="text-zinc-400">{(v.km || 0).toLocaleString('pt-BR')} KM</span>
+                      </p>
                     </div>
-                    <Car size={40} className="text-zinc-800" />
+                    <Car size={40} className="text-zinc-800 shrink-0" />
                   </button>
                 ))}
                 <button onClick={() => setShowQuickVehicle(true)} className="w-full p-8 border-2 border-dashed border-white/10 rounded-ios flex items-center justify-center gap-4 hover:bg-white/5 transition-all group active:scale-95">
@@ -342,23 +363,47 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
         )}
         {step === 'ITENS' && selectedVehicle && (
           <div className="w-full max-w-3xl space-y-12 animate-in slide-in-from-right-6 duration-700 flex flex-col items-center">
-            <div className="glass-card p-10 rounded-ios border-white/10 space-y-12 w-full shadow-2xl">
-               <div className="flex items-center justify-between border-b border-white/5 pb-8">
+            <div className="glass-card p-6 sm:p-10 rounded-ios border-white/10 space-y-8 sm:space-y-12 w-full shadow-2xl">
+               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-6 sm:pb-8">
                  <div className="flex gap-4 items-center">
-                    <div className="w-12 h-12 bg-[#FF2D55]/10 rounded-xl flex items-center justify-center text-[#FF2D55]"><Car size={24}/></div>
+                    <div className="w-12 h-12 bg-[#FF2D55]/10 rounded-xl flex items-center justify-center text-[#FF2D55] shrink-0"><Car size={24}/></div>
                     <div>
                         <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white leading-none">{selectedVehicle.plate}</h3>
                         <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.3em] mt-1">{selectedVehicle.model}</p>
                     </div>
                  </div>
-                 <div className="flex gap-4">
-                   <button onClick={() => setShowPartSearch(true)} className="px-6 py-4 bg-zinc-900 border border-white/10 text-zinc-400 rounded-full font-black uppercase text-[10px] tracking-widest hover:text-white transition-all italic">BUSCAR PEÇA</button>
-                   <button onClick={() => setItems([...items, { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }])} className="px-8 py-4 bg-[#FF2D55] text-white rounded-full font-black uppercase text-[10px] tracking-widest active:scale-90 transition-all italic">NOVO ITEM</button>
+                 <div className="flex flex-wrap gap-3 sm:gap-4">
+                   <button onClick={() => setShowPartSearch(true)} className="flex-1 sm:flex-none px-5 sm:px-6 py-3.5 sm:py-4 bg-zinc-900 border border-white/10 text-zinc-400 rounded-full font-black uppercase text-[10px] tracking-widest hover:text-white transition-all italic">BUSCAR PEÇA</button>
+                   <button onClick={() => setItems([...items, { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, unitPrice: 0, type: 'SERVICE' }])} className="flex-1 sm:flex-none px-6 sm:px-8 py-3.5 sm:py-4 bg-[#FF2D55] text-white rounded-full font-black uppercase text-[10px] tracking-widest active:scale-90 transition-all italic">NOVO ITEM</button>
+                 </div>
+               </div>
+
+               {/* Quilometragem específica desta nota */}
+               <div className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                 <div>
+                   <label htmlFor="note-km-input" className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block italic">
+                     Quilometragem Atual desta Nota (KM)
+                   </label>
+                   <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider mt-1">
+                     Último KM no cadastro do veículo: {(selectedVehicle.km || 0).toLocaleString('pt-BR')} KM
+                   </p>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <input
+                     id="note-km-input"
+                     type="number"
+                     min="0"
+                     value={noteKm}
+                     onChange={(e) => setNoteKm(e.target.value)}
+                     placeholder={selectedVehicle.km?.toString() || '0'}
+                     className="bg-zinc-900 border border-white/10 p-3.5 rounded-xl text-right text-white font-black w-full sm:w-44 outline-none focus:border-[#FF2D55] transition-all"
+                   />
+                   <span className="text-[10px] font-black text-zinc-500 uppercase">KM</span>
                  </div>
                </div>
 
                {showPartSearch && (
-                 <div className="bg-zinc-900 p-8 rounded-[2rem] border border-[#FF2D55]/30 space-y-6 animate-in zoom-in duration-300">
+                 <div className="bg-zinc-900 p-6 sm:p-8 rounded-[2rem] border border-[#FF2D55]/30 space-y-6 animate-in zoom-in duration-300">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-[#FF2D55]">ESTOQUE DE PEÇAS</h4>
                       <button onClick={() => setShowPartSearch(false)}><X size={20}/></button>
@@ -380,12 +425,12 @@ const NewServiceOrder: React.FC<{ session?: UserSession; syncData?: (key: string
 
                <div className="space-y-6">
                  {items.map(item => (
-                   <div key={item.id} className="bg-black/50 p-6 rounded-[2.5rem] border border-white/5 flex flex-col gap-6 shadow-inner">
+                   <div key={item.id} className="bg-black/50 p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5 flex flex-col gap-4 sm:gap-6 shadow-inner">
                      <input type="text" placeholder="DESCRIÇÃO..." value={item.description} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, description: e.target.value.toUpperCase()} : i))} className="w-full bg-transparent text-[14px] font-black outline-none uppercase italic text-white tracking-widest"/>
-                     <div className="flex gap-6">
-                        <input type="number" placeholder="QTD" value={item.quantity || ''} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, quantity: parseFloat(e.target.value) || 0} : i))} className="w-20 bg-white/5 border border-white/5 p-5 rounded-2xl text-center text-[16px] font-black text-white outline-none"/>
-                        <input type="number" placeholder="R$ UNIT" value={item.unitPrice || ''} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, unitPrice: parseFloat(e.target.value) || 0} : i))} className="flex-1 bg-white/5 border border-white/5 p-5 rounded-2xl text-[16px] font-black text-white outline-none"/>
-                        <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-5 text-zinc-800 hover:text-[#FF2D55] active:scale-90 transition-all"><Trash2 size={24}/></button>
+                     <div className="flex items-center gap-2 sm:gap-6">
+                        <input type="number" placeholder="QTD" value={item.quantity || ''} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, quantity: parseFloat(e.target.value) || 0} : i))} className="w-16 sm:w-20 bg-white/5 border border-white/5 p-4 sm:p-5 rounded-2xl text-center text-[15px] sm:text-[16px] font-black text-white outline-none"/>
+                        <input type="number" placeholder="R$ UNIT" value={item.unitPrice || ''} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, unitPrice: parseFloat(e.target.value) || 0} : i))} className="flex-1 min-w-0 bg-white/5 border border-white/5 p-4 sm:p-5 rounded-2xl text-[15px] sm:text-[16px] font-black text-white outline-none"/>
+                        <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-3 sm:p-5 text-zinc-800 hover:text-[#FF2D55] active:scale-90 transition-all shrink-0"><Trash2 size={22}/></button>
                      </div>
                    </div>
                  ))}

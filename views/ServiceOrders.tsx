@@ -113,7 +113,9 @@ const ServiceOrders: React.FC<{ role?: string; session?: UserSession; syncData?:
                 </div>
                 <div>
                    <p className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{os.vehiclePlate}</p>
-                   <p className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest mt-1.5">{os.vehicleModel}</p>
+                   <p className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest mt-1.5">
+                     {os.vehicleModel}{os.vehicleKm ? ` • ${Number(os.vehicleKm).toLocaleString('pt-BR')} KM` : ''}
+                   </p>
                 </div>
               </div>
 

@@ -84,14 +84,20 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
       return;
     }
 
+    const parsedKm = parseFloat(newService.km);
+    const hasValidKm = newService.km.trim() !== '' && !isNaN(parsedKm) && parsedKm >= 0;
+    const finalKmStr = hasValidKm ? parsedKm.toString() : (vehicle.km !== undefined && vehicle.km !== null ? vehicle.km.toString() : '0');
+
     const newOs: ServiceOrder = {
       id: Math.random().toString(36).substr(2, 9),
       osNumber: (Math.floor(Math.random() * 90000) + 10000).toString(),
       clientId: owner?.id || '',
       clientName: owner?.name || 'Cliente Desconhecido',
+      clientPhone: owner?.phone,
       vehicleId: vehicle.id,
       vehiclePlate: vehicle.plate,
       vehicleModel: vehicle.model,
+      vehicleKm: finalKmStr,
       problem: newService.description,
       items: [],
       laborValue: newService.labor,
@@ -117,18 +123,18 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
       localStorage.setItem(`kaenpro_${tenant}_orders`, JSON.stringify(nextOrders));
     }
     
-    // Update Vehicle KM
-    if (newService.km) {
+    // Update Vehicle KM when applicable (new KM >= current KM or current KM is 0/unset)
+    if (hasValidKm && parsedKm > 0 && parsedKm !== vehicle.km && (parsedKm >= (vehicle.km || 0) || !vehicle.km)) {
       const savedVehicles = JSON.parse(localStorage.getItem(`kaenpro_${tenant}_vehicles`) || '[]');
       const updatedVehicles = savedVehicles.map((v: Vehicle) => 
-        v.id === vehicle.id ? { ...v, km: parseFloat(newService.km) } : v
+        v.id === vehicle.id ? { ...v, km: parsedKm } : v
       );
       if (syncData) {
         await syncData('vehicles', updatedVehicles);
       } else {
         localStorage.setItem(`kaenpro_${tenant}_vehicles`, JSON.stringify(updatedVehicles));
       }
-      setVehicle({ ...vehicle, km: parseFloat(newService.km) });
+      setVehicle({ ...vehicle, km: parsedKm });
     }
 
     setShowAddService(false);
@@ -258,6 +264,9 @@ const VehicleDetails: React.FC<{ session?: UserSession; syncData?: (key: string,
                         </div>
                         <div className="flex items-center gap-2 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
                           <Calendar size={12} /> {new Date(os.createdAt).toLocaleDateString('pt-BR')}
+                          {os.vehicleKm && (
+                            <span className="text-zinc-400">• {Number(os.vehicleKm).toLocaleString('pt-BR')} KM</span>
+                          )}
                         </div>
                       </div>
                       <div className="text-left sm:text-right">

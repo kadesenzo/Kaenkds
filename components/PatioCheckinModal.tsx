@@ -273,6 +273,9 @@ export const PatioCheckinModal: React.FC<PatioCheckinModalProps> = ({
         ? `${plateInput.slice(0, 3)}-${plateInput.slice(3, 7)}` 
         : plateInput;
 
+      const parsedKm = parseInt(String(vehicleKm).replace(/\D/g, ''), 10);
+      const hasValidKm = String(vehicleKm).trim() !== '' && !isNaN(parsedKm) && parsedKm >= 0;
+
       let vehicle = vehicles.find(v => v.plate.replace(/[^A-Z0-9]/g, '').toUpperCase() === plateInput.replace(/[^A-Z0-9]/g, '').toUpperCase());
       if (!vehicle) {
         vehicle = {
@@ -284,11 +287,18 @@ export const PatioCheckinModal: React.FC<PatioCheckinModalProps> = ({
           year: vehicleYear,
           color: vehicleColor,
           fuel: vehicleFuel,
-          km: parseInt(vehicleKm) || 84000
+          km: hasValidKm ? parsedKm : 84000
         };
         const updatedVehicles = [...vehicles, vehicle];
         await syncData('vehicles', updatedVehicles);
+      } else if (hasValidKm && parsedKm > 0 && parsedKm !== vehicle.km && (parsedKm >= (vehicle.km || 0) || !vehicle.km)) {
+        const updatedVehicles = vehicles.map(v =>
+          v.id === vehicle!.id ? { ...v, km: parsedKm } : v
+        );
+        await syncData('vehicles', updatedVehicles);
       }
+
+      const finalKmStr = hasValidKm ? parsedKm.toString() : (vehicle.km !== undefined && vehicle.km !== null ? vehicle.km.toString() : '0');
 
       // Build items
       const osItems = selectedParts.map(sp => ({
@@ -354,7 +364,7 @@ export const PatioCheckinModal: React.FC<PatioCheckinModalProps> = ({
         vehicleId: vehicle.id,
         vehiclePlate: formattedPlate,
         vehicleModel: vehicleModel,
-        vehicleKm,
+        vehicleKm: finalKmStr,
         problem: serviceDescription ? serviceDescription.toUpperCase() : 'MANUTENÇÃO DE PÁTIO',
         items: osItems,
         laborValue: laborVal,
