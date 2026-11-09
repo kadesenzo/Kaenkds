@@ -19,21 +19,21 @@ import {
 } from 'lucide-react';
 
 interface SidebarProps {
-  role: 'Dono' | 'Funcionário' | 'Recepção';
+  role: 'Dono' | 'FuncionÃ¡rio' | 'RecepÃ§Ã£o';
   isOpen?: boolean;
   onClose?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ role, isOpen, onClose }) => {
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['Dono', 'Funcionário', 'Recepção'] },
-    { name: 'Terminal Mecânico', icon: Smartphone, path: '/terminal', roles: ['Dono', 'Funcionário'] },
-    { name: 'Criar Nota', icon: PlusSquare, path: '/orders/new', roles: ['Dono', 'Recepção', 'Funcionário'] },
-    { name: 'Notas Geradas', icon: FileText, path: '/orders', roles: ['Dono', 'Recepção', 'Funcionário'] },
-    { name: 'Cobranças', icon: DollarSign, path: '/billing', roles: ['Dono', 'Recepção'] },
-    { name: 'Clientes', icon: Users, path: '/clients', roles: ['Dono', 'Recepção'] },
-    { name: 'Veículos', icon: Car, path: '/vehicles', roles: ['Dono', 'Recepção', 'Funcionário'] },
-    { name: 'Estoque', icon: Package, path: '/inventory', roles: ['Dono', 'Recepção'] },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['Dono', 'FuncionÃ¡rio', 'RecepÃ§Ã£o'] },
+    { name: 'Terminal MecÃ¢nico', icon: Smartphone, path: '/terminal', roles: ['Dono', 'FuncionÃ¡rio'] },
+    { name: 'Criar Nota', icon: PlusSquare, path: '/orders/new', roles: ['Dono', 'RecepÃ§Ã£o', 'FuncionÃ¡rio'] },
+    { name: 'Notas Geradas', icon: FileText, path: '/orders', roles: ['Dono', 'RecepÃ§Ã£o', 'FuncionÃ¡rio'] },
+    { name: 'CobranÃ§as', icon: DollarSign, path: '/billing', roles: ['Dono', 'RecepÃ§Ã£o'] },
+    { name: 'Clientes', icon: Users, path: '/clients', roles: ['Dono', 'RecepÃ§Ã£o'] },
+    { name: 'VeÃ­culos', icon: Car, path: '/vehicles', roles: ['Dono', 'RecepÃ§Ã£o', 'FuncionÃ¡rio'] },
+    { name: 'Estoque', icon: Package, path: '/inventory', roles: ['Dono', 'RecepÃ§Ã£o'] },
     { name: 'Equipe', icon: UserCheck, path: '/employees', roles: ['Dono'] },
   ];
 

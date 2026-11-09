@@ -216,7 +216,7 @@ app.post("/api/public/appointments", (req, res) => {
     broadcastToUser(user, { key: "appointments", value: updatedAppointments });
   }
 
-  console.log("📅 Public appointment booked and saved to cloud:", newAppointment.clientName);
+  console.log("ðŸ“… Public appointment booked and saved to cloud:", newAppointment.clientName);
   res.json({ success: true, appointment: newAppointment });
 });
 
@@ -322,7 +322,7 @@ app.get("/api/sync-stream/:username", (req, res) => {
 app.post("/api/rooms/create", async (req, res) => {
   const { roomId, password, name, masterPassword } = req.body;
   if (!roomId || !password || !name) {
-    res.status(400).json({ error: "Parâmetros inválidos para criação da oficina." });
+    res.status(400).json({ error: "ParÃ¢metros invÃ¡lidos para criaÃ§Ã£o da oficina." });
     return;
   }
 
@@ -342,7 +342,7 @@ app.post("/api/rooms/create", async (req, res) => {
 
   const nid = roomId.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
   if (db["kaenpro_rooms_registry"][nid]) {
-    res.status(400).json({ error: "Código da oficina indisponível ou já cadastrado." });
+    res.status(400).json({ error: "CÃ³digo da oficina indisponÃ­vel ou jÃ¡ cadastrado." });
     return;
   }
 
@@ -372,22 +372,22 @@ app.post("/api/rooms/create", async (req, res) => {
       id: 'usr-2', 
       name: 'Eduardo Maciel', 
       username: 'eduardo', 
-      role: 'Funcionário', 
+      role: 'FuncionÃ¡rio', 
       status: 'ATIVO', 
       lastLogin: 'Nunca logou', 
       deviceRegistered: 'Tablet Oficina (iPad Pro)',
       password: 'mec1234',
-      securityQuestion: 'Qual sua profissão?',
+      securityQuestion: 'Qual sua profissÃ£o?',
       securityAnswer: 'MECANICO'
     },
     { 
       id: 'usr-3', 
       name: 'Janete Silva', 
       username: 'janete', 
-      role: 'Recepção', 
+      role: 'RecepÃ§Ã£o', 
       status: 'ATIVO', 
       lastLogin: 'Nunca logou', 
-      deviceRegistered: 'Desktop Recepção (Linux Chrome)',
+      deviceRegistered: 'Desktop RecepÃ§Ã£o (Linux Chrome)',
       password: 'rec1234',
       securityQuestion: 'Em qual cidade fica a matriz?',
       securityAnswer: 'SAO PAULO'
@@ -396,7 +396,7 @@ app.post("/api/rooms/create", async (req, res) => {
       id: 'usr-4', 
       name: 'Thiago Rover', 
       username: 'thiago', 
-      role: 'Funcionário', 
+      role: 'FuncionÃ¡rio', 
       status: 'ATIVO', 
       lastLogin: 'Nunca logou', 
       deviceRegistered: 'Smartphone (Android)',
@@ -430,12 +430,12 @@ app.post("/api/rooms/join", async (req, res) => {
 
   const room = registry[nid];
   if (!room) {
-    res.status(404).json({ error: "Oficina não encontrada. Verifique o código digitado." });
+    res.status(404).json({ error: "Oficina nÃ£o encontrada. Verifique o cÃ³digo digitado." });
     return;
   }
 
   if (room.password !== password) {
-    res.status(401).json({ error: "Senha da oficina incorreta. Acesso não autorizado." });
+    res.status(401).json({ error: "Senha da oficina incorreta. Acesso nÃ£o autorizado." });
     return;
   }
 
@@ -450,7 +450,7 @@ app.post("/api/presence/disconnect/:username/:sessionId", (req, res) => {
     const sessionToKill = activeSessions[username].find(s => s.id === sessionId);
     if (sessionToKill) {
       try {
-        sessionToKill.res.write(`data: ${JSON.stringify({ type: "force_disconnect", message: "Conexão encerrada pelo Administrador." })}\n\n`);
+        sessionToKill.res.write(`data: ${JSON.stringify({ type: "force_disconnect", message: "ConexÃ£o encerrada pelo Administrador." })}\n\n`);
         sessionToKill.res.end();
       } catch (err) {
         // Ignored
@@ -461,7 +461,7 @@ app.post("/api/presence/disconnect/:username/:sessionId", (req, res) => {
       return;
     }
   }
-  res.status(404).json({ error: "Sessão não encontrada." });
+  res.status(404).json({ error: "SessÃ£o nÃ£o encontrada." });
 });
 
 // GEMINI-POWERED BUSINESS CONTENT & CRM MARKETING GENERATOR ENDPOINTS
@@ -470,12 +470,12 @@ app.post("/api/gemini/viral-posts", async (req, res) => {
   const { niche, platform, goal, targetAudience, postTone, postQty } = req.body;
   try {
     const client = getGeminiClient();
-    const prompt = `Gere exatamente ${postQty || 3} posts de redes sociais altamente virais voltados para o nicho de oficinas mecânicas e automotivas, especificamente: "${niche || 'Oficina Mecânica'}".
+    const prompt = `Gere exatamente ${postQty || 3} posts de redes sociais altamente virais voltados para o nicho de oficinas mecÃ¢nicas e automotivas, especificamente: "${niche || 'Oficina MecÃ¢nica'}".
     Plataforma de destino: ${platform || 'Instagram'}.
-    Objetivo principal das postagens: ${goal || 'Atrair novos clientes para Revisão'}).
-    Público-alvo desejado: ${targetAudience || 'Motoristas e proprietários de carros da região'}.
-    Tom geral da comunicação: ${postTone || 'Profissional, autoritativo e direto'}.
-    Responda em português no formato JSON especificado. Para cada post individual, forneça um título provocativo ou gancho inicial, uma legenda completa rica em gatilhos e apelos estruturados de segurança/manutenção, hashtags oportunas do setor automotivo, e um prompt detalhado em português para geração de imagem artística e criativa via inteligência artificial (DALL-E/Midjourney) que represente perfeitamente a mensagem.`;
+    Objetivo principal das postagens: ${goal || 'Atrair novos clientes para RevisÃ£o'}).
+    PÃºblico-alvo desejado: ${targetAudience || 'Motoristas e proprietÃ¡rios de carros da regiÃ£o'}.
+    Tom geral da comunicaÃ§Ã£o: ${postTone || 'Profissional, autoritativo e direto'}.
+    Responda em portuguÃªs no formato JSON especificado. Para cada post individual, forneÃ§a um tÃ­tulo provocativo ou gancho inicial, uma legenda completa rica em gatilhos e apelos estruturados de seguranÃ§a/manutenÃ§Ã£o, hashtags oportunas do setor automotivo, e um prompt detalhado em portuguÃªs para geraÃ§Ã£o de imagem artÃ­stica e criativa via inteligÃªncia artificial (DALL-E/Midjourney) que represente perfeitamente a mensagem.`;
 
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",
@@ -517,10 +517,10 @@ app.post("/api/gemini/reels-script", async (req, res) => {
   const { theme, tone } = req.body;
   try {
     const client = getGeminiClient();
-    const prompt = `Escreva um roteiro magnético e cinematográfico de Reels/Shorts/TikTok de altíssima conversão automotiva.
-    Tema desafiador do vídeo: "${theme || '3 ruídos estranhos no freio da sua SUV que indicam perigo imediato'}".
-    Tom de voz ideal da narração: ${tone || 'Alerta dinâmico e enérgico'}.
-    Forneça um gancho frontal fortíssimo de reter atenção nos primeiros 3 segundos para evitar que o usuário dê scroll. Esboce de 3 a 5 sequências ou cenas rápidas, cada uma descrevendo exatamente qual cena visual cortar na gravação física da oficina (Corte de Câmera) e a respectiva fala acelerada de locução profissional, e encerre com uma chamada de ação (CTA) para encaminhar o fluxo de visualização aos botões de agendamento.`;
+    const prompt = `Escreva um roteiro magnÃ©tico e cinematogrÃ¡fico de Reels/Shorts/TikTok de altÃ­ssima conversÃ£o automotiva.
+    Tema desafiador do vÃ­deo: "${theme || '3 ruÃ­dos estranhos no freio da sua SUV que indicam perigo imediato'}".
+    Tom de voz ideal da narraÃ§Ã£o: ${tone || 'Alerta dinÃ¢mico e enÃ©rgico'}.
+    ForneÃ§a um gancho frontal fortÃ­ssimo de reter atenÃ§Ã£o nos primeiros 3 segundos para evitar que o usuÃ¡rio dÃª scroll. Esboce de 3 a 5 sequÃªncias ou cenas rÃ¡pidas, cada uma descrevendo exatamente qual cena visual cortar na gravaÃ§Ã£o fÃ­sica da oficina (Corte de CÃ¢mera) e a respectiva fala acelerada de locuÃ§Ã£o profissional, e encerre com uma chamada de aÃ§Ã£o (CTA) para encaminhar o fluxo de visualizaÃ§Ã£o aos botÃµes de agendamento.`;
 
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",
@@ -564,10 +564,10 @@ app.post("/api/gemini/campaign-ads", async (req, res) => {
   const { product, audience, budget } = req.body;
   try {
     const client = getGeminiClient();
-    const prompt = `Formule uma matriz completa de anúncios persuasivos direto-para-conversão em tráfego pago visando captar leads automotivos para o produto/serviço: "${product || 'Revisão Completa Kaen Especial'}".
-    Audiência de motoristas alvo: ${audience || 'Motoristas da cidade e motoristas de aplicativo'}.
-    Orçamento estipulado das campanhas: ${budget || 'Baixo ou intermediário'}.
-    Escreva anúncios diferentes focados com ângulos de vendas distintos (como economia a longo prazo, perigo imediato nas estradas, ou proposta irresistível por tempo limitado).`;
+    const prompt = `Formule uma matriz completa de anÃºncios persuasivos direto-para-conversÃ£o em trÃ¡fego pago visando captar leads automotivos para o produto/serviÃ§o: "${product || 'RevisÃ£o Completa Kaen Especial'}".
+    AudiÃªncia de motoristas alvo: ${audience || 'Motoristas da cidade e motoristas de aplicativo'}.
+    OrÃ§amento estipulado das campanhas: ${budget || 'Baixo ou intermediÃ¡rio'}.
+    Escreva anÃºncios diferentes focados com Ã¢ngulos de vendas distintos (como economia a longo prazo, perigo imediato nas estradas, ou proposta irresistÃ­vel por tempo limitado).`;
 
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",
@@ -602,7 +602,7 @@ app.post("/api/gemini/campaign-ads", async (req, res) => {
     res.json(result);
   } catch (error: any) {
     console.error("Gemini Ads Matrix Generation Failed:", error);
-    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para Anúncios: " + error.message });
+    res.status(500).json({ error: "Erro ao invocar o motor Gemini AI para AnÃºncios: " + error.message });
   }
 });
 
@@ -610,22 +610,22 @@ app.post("/api/gemini/crm-message", async (req, res) => {
   const { clientName, clientPhone, messageType, details } = req.body;
   try {
     const client = getGeminiClient();
-    const prompt = `Escreva uma mensagem de WhatsApp extremamente Curta, Elegante, Rápida e Objetiva no estilo de lembrete formal de faturamento ou cobrança de alto padrão para o cliente de nome "${clientName}".
-    Código/Tipo do relacionamento: ${messageType} (as opções legítimas são: feedback rápido pós-entrega, agendamento de revisão programada, ou aviso elegante de cobrança de orçamento/fatura em aberto).
+    const prompt = `Escreva uma mensagem de WhatsApp extremamente Curta, Elegante, RÃ¡pida e Objetiva no estilo de lembrete formal de faturamento ou cobranÃ§a de alto padrÃ£o para o cliente de nome "${clientName}".
+    CÃ³digo/Tipo do relacionamento: ${messageType} (as opÃ§Ãµes legÃ­timas sÃ£o: feedback rÃ¡pido pÃ³s-entrega, agendamento de revisÃ£o programada, ou aviso elegante de cobranÃ§a de orÃ§amento/fatura em aberto).
     Detalhes adicionais ou valores a incluir: "${details || 'Nenhum detalhe adicional inserido'}".
 
-    REGRAS CRÍTICAS DE TEXTO:
-    1. Nunca gere um texto longo ou parágrafo floreado. Seja muito direto, prático e rápido.
-    2. Use formatação profissional e limpa com termos formais adequados ("estilo cobrança/protocolo").
-    3. Use marcadores gráficos sofisticados (como ⚡, ↳, *negritos*) e espaçamento minimalista para o WhatsApp.
-    4. Limite o corpo principal a no máximo 4 ou 5 linhas.
+    REGRAS CRÃTICAS DE TEXTO:
+    1. Nunca gere um texto longo ou parÃ¡grafo floreado. Seja muito direto, prÃ¡tico e rÃ¡pido.
+    2. Use formataÃ§Ã£o profissional e limpa com termos formais adequados ("estilo cobranÃ§a/protocolo").
+    3. Use marcadores grÃ¡ficos sofisticados (como âš¡, â†³, *negritos*) e espaÃ§amento minimalista para o WhatsApp.
+    4. Limite o corpo principal a no mÃ¡ximo 4 ou 5 linhas.
 
-    Exemplo de layout esperado (siga similar em português):
-    ※ *KAEN MOTORSPORTS* ※
-    ↳ *AVISO DE REVISÃO / FATURA*
+    Exemplo de layout esperado (siga similar em portuguÃªs):
+    â€» *KAEN MOTORSPORTS* â€»
+    â†³ *AVISO DE REVISÃƒO / FATURA*
     Prezado *${clientName}*, identificamos...
     *Status:* [Detalhe curto]
-    Agradecemos a preferência.`;
+    Agradecemos a preferÃªncia.`;
 
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",

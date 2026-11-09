@@ -1,16 +1,16 @@
 
 export enum OSStatus {
-  AGUARDANDO_DIAGNOSTICO = 'Aguardando diagnóstico',
-  EM_DIAGNOSTICO = 'Em diagnóstico',
-  ORCAMENTO_ENVIADO = 'Orçamento enviado',
-  AGUARDANDO_APROVACAO = 'Aguardando aprovação',
-  EM_SERVICO = 'Em serviço',
-  FINALIZACAO = 'Finalização',
+  AGUARDANDO_DIAGNOSTICO = 'Aguardando diagnÃ³stico',
+  EM_DIAGNOSTICO = 'Em diagnÃ³stico',
+  ORCAMENTO_ENVIADO = 'OrÃ§amento enviado',
+  AGUARDANDO_APROVACAO = 'Aguardando aprovaÃ§Ã£o',
+  EM_SERVICO = 'Em serviÃ§o',
+  FINALIZACAO = 'FinalizaÃ§Ã£o',
   PRONTO = 'Pronto',
   ENTREGUE = 'Entregue',
   // Legado para compatibilidade
-  ORCAMENTO = 'Orçamento',
-  EM_ANDAMENTO = 'Em Execução',
+  ORCAMENTO = 'OrÃ§amento',
+  EM_ANDAMENTO = 'Em ExecuÃ§Ã£o',
   FINALIZADO = 'Finalizado',
   CANCELADO = 'Cancelado'
 }
@@ -29,8 +29,8 @@ export enum TransactionType {
 export enum PaymentMethod {
   PIX = 'PIX',
   DINHEIRO = 'Dinheiro',
-  CARTAO_CREDITO = 'Cartão de Crédito',
-  CARTAO_DEBITO = 'Cartão de Débito',
+  CARTAO_CREDITO = 'CartÃ£o de CrÃ©dito',
+  CARTAO_DEBITO = 'CartÃ£o de DÃ©bito',
   OUTRO = 'Outro'
 }
 
@@ -56,7 +56,7 @@ export interface UserSession {
   username: string;
   activeUser: string;
   realUsername: string;
-  role: 'Dono' | 'Funcionário' | 'Recepção' | 'Gerente' | 'Mecânico' | 'Estoque';
+  role: 'Dono' | 'FuncionÃ¡rio' | 'RecepÃ§Ã£o' | 'Gerente' | 'MecÃ¢nico' | 'Estoque';
   lastSync: string;
 }
 
@@ -223,7 +223,7 @@ export interface CustomerReview {
   feedback: string;
   source: 'WhatsApp' | 'Google' | 'Presencial';
   date: string;
-  status: 'Avaliado' | 'Aguardando Avaliação' | 'Respondido';
+  status: 'Avaliado' | 'Aguardando AvaliaÃ§Ã£o' | 'Respondido';
 }
 
 export interface MarketingLead {
@@ -231,8 +231,8 @@ export interface MarketingLead {
   name: string;
   phone: string;
   vehicleModel?: string;
-  origin: 'Instagram' | 'Google' | 'Indicação' | 'Anúncios' | 'WhatsApp' | 'Outro';
-  stage: 'Lead' | 'Contato' | 'Orçamento' | 'Agendamento' | 'Serviço' | 'Cliente Recorrente';
+  origin: 'Instagram' | 'Google' | 'IndicaÃ§Ã£o' | 'AnÃºncios' | 'WhatsApp' | 'Outro';
+  stage: 'Lead' | 'Contato' | 'OrÃ§amento' | 'Agendamento' | 'ServiÃ§o' | 'Cliente Recorrente';
   estimatedValue?: number;
   notes?: string;
   createdAt: string;
@@ -242,7 +242,7 @@ export interface MarketingLead {
 export interface KnowledgeDoc {
   id: string;
   title: string;
-  category: 'Checklists' | 'Procedimentos Internos' | 'Padrões de Atendimento' | 'Fornecedores' | 'Treinamentos';
+  category: 'Checklists' | 'Procedimentos Internos' | 'PadrÃµes de Atendimento' | 'Fornecedores' | 'Treinamentos';
   summary: string;
   content: string;
   author: string;
